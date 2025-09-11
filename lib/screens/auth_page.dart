@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:jamiifund/services/user_service.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({Key? key}) : super(key: key);
@@ -48,7 +49,6 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     }
   }
 
-  // This would typically be implemented with actual Supabase auth
   Future<void> _signIn() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       _showErrorSnackBar('Please fill in all fields');
@@ -60,17 +60,18 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     });
 
     try {
-      // Supabase sign in would go here
-      // final response = await Supabase.instance.client.auth.signInWithPassword(
-      //   email: _emailController.text.trim(),
-      //   password: _passwordController.text,
-      // );
-
-      // For now, simulate a delay and success
-      await Future.delayed(const Duration(seconds: 1));
+      // Use Supabase for authentication
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
       
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        if (response.session != null) {
+          Navigator.of(context).pushReplacementNamed('/home');
+        } else {
+          _showErrorSnackBar('Invalid email or password');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -85,7 +86,6 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     }
   }
 
-  // This would typically be implemented with actual Supabase auth
   Future<void> _signUp() async {
     if (_emailController.text.isEmpty || 
         _passwordController.text.isEmpty ||
@@ -99,18 +99,35 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     });
 
     try {
-      // Supabase sign up would go here
-      // final response = await Supabase.instance.client.auth.signUp(
-      //   email: _emailController.text.trim(),
-      //   password: _passwordController.text,
-      //   data: {'full_name': _nameController.text.trim()},
-      // );
+      // Use Supabase for authentication
+      final response = await Supabase.instance.client.auth.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        data: {'full_name': _nameController.text.trim()},
+      );
 
-      // For now, simulate a delay and success
-      await Future.delayed(const Duration(seconds: 1));
-      
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        if (response.user != null) {
+          // Create a profile record
+          await Supabase.instance.client.from('profiles').insert({
+            'id': response.user!.id,
+            'full_name': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'created_at': DateTime.now().toIso8601String(),
+          });
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully'),
+              backgroundColor: Color(0xFF8A2BE2),
+            ),
+          );
+          
+          Navigator.of(context).pushReplacementNamed('/home');
+        } else {
+          _showErrorSnackBar('Failed to create account');
+        }
       }
     } catch (e) {
       if (mounted) {

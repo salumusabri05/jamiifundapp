@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
+import 'package:jamiifund/services/user_service.dart';
+import 'package:jamiifund/services/verification_service.dart';
+import 'package:jamiifund/screens/verification_screen.dart';
 
 class CreateCampaignScreen extends StatefulWidget {
   const CreateCampaignScreen({Key? key}) : super(key: key);
@@ -19,6 +22,8 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
   
   DateTime _endDate = DateTime.now().add(const Duration(days: 30));
   String _selectedCategory = 'Education';
+  bool _isVerified = false;
+  bool _isLoading = true;
   
   final List<String> _categories = [
     'Education',
@@ -30,6 +35,44 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     'Technology',
     'Other'
   ];
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkVerificationStatus();
+  }
+  
+  // Check if user is verified to create campaigns
+  Future<void> _checkVerificationStatus() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final user = UserService.getCurrentUser();
+      if (user != null) {
+        final isVerified = await VerificationService.isUserVerified(user.id);
+        setState(() => _isVerified = isVerified);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error checking verification status: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+  
+  // Navigate to verification screen
+  void _navigateToVerificationScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const VerificationScreen(),
+      ),
+    ).then((_) {
+      // Refresh verification status when returning from verification screen
+      _checkVerificationStatus();
+    });
+  }
 
   @override
   void dispose() {
@@ -37,6 +80,72 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     _descriptionController.dispose();
     _goalAmountController.dispose();
     super.dispose();
+  }
+  
+  // Widget to display when verification is required
+  Widget _buildVerificationRequired() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.verified_user_outlined,
+              size: 80,
+              color: Colors.amber[700],
+            ).animate().fade(duration: const Duration(milliseconds: 600)),
+            const SizedBox(height: 24),
+            Text(
+              'Verification Required',
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+              ),
+            ).animate().fade(delay: const Duration(milliseconds: 200)),
+            const SizedBox(height: 16),
+            Text(
+              'To create a campaign on JamiiFund, your account must be verified first. Verification helps ensure trust and security on our platform.',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey[700],
+              ),
+              textAlign: TextAlign.center,
+            ).animate().fade(delay: const Duration(milliseconds: 400)),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _navigateToVerificationScreen,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Complete Verification',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ).animate().fade(delay: const Duration(milliseconds: 600)).moveY(begin: 20, end: 0),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text(
+                'Go Back',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ).animate().fade(delay: const Duration(milliseconds: 800)),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -56,15 +165,19 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
       ),
       drawer: const AppDrawer(),
       bottomNavigationBar: const AppBottomNavBar(currentIndex: 2),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildImageSelector(),
-              const SizedBox(height: 24.0),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : !_isVerified
+              ? _buildVerificationRequired()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildImageSelector(),
+                        const SizedBox(height: 24.0),
               _buildTitleField(),
               const SizedBox(height: 16.0),
               _buildCategoryDropdown(),
