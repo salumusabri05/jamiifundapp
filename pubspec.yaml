@@ -29,6 +29,5 @@ flutter:
   
   assets:
     - assets/images/
-    - assets/images/home/
     - assets/videos/
     - assets/
