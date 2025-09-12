@@ -185,30 +185,38 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
                                 const SizedBox(height: 8),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    request.idDocumentUrl,
-                                    height: 200,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    },
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
+                                  child: request.idUrl != null && request.idUrl!.isNotEmpty
+                                    ? Image.network(
+                                        request.idUrl!,
+                                        height: 200,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return const Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            height: 200,
+                                            color: Colors.grey[300],
+                                            child: const Center(
+                                              child: Icon(
+                                                Icons.error_outline,
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : Container(
                                         height: 200,
                                         color: Colors.grey[300],
                                         child: const Center(
-                                          child: Icon(
-                                            Icons.error_outline,
-                                            color: Colors.red,
-                                          ),
+                                          child: Text('No ID document available'),
                                         ),
-                                      );
-                                    },
-                                  ),
+                                      ),
                                 ),
                                 const SizedBox(height: 24),
                                 Row(

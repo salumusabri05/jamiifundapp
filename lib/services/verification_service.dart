@@ -1,16 +1,21 @@
+import 'dart:io';
 import 'package:jamiifund/models/verification_request.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VerificationService {
   static const String _tableName = 'verification_requests';
+  static const String _profilesTable = 'profiles';
   static const String _paymentMethodsTable = 'payment_methods';
   
   // Get Supabase client
   static SupabaseClient get _client => SupabaseService.client;
 
-  // Create a new verification request
-  static Future<VerificationRequest> createVerificationRequest(VerificationRequest request) async {
+  // Create a new verification request with comprehensive user details
+  static Future<VerificationRequest> createVerificationRequest(
+    VerificationRequest request, {
+    Map<String, dynamic>? profileDetails,
+  }) async {
     try {
       final response = await _client
           .from(_tableName)
@@ -18,7 +23,81 @@ class VerificationService {
           .select()
           .single();
       
+      // If profile details are provided, update the profiles table
+      if (profileDetails != null && profileDetails.isNotEmpty && request.userId != null) {
+        await _client.from(_profilesTable).update({
+          ...profileDetails,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', request.userId!);
+      }
+      
       return VerificationRequest.fromMap(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+  
+  // Submit comprehensive verification details
+  static Future<VerificationRequest> submitVerificationDetails({
+    required String userId,
+    String? fullName,
+    String? username,
+    String? avatarUrl,
+    String? website,
+    String? phone,
+    String? address,
+    String? city,
+    String? region,
+    String? postalCode,
+    bool? isOrganization,
+    String? organizationName,
+    String? organizationRegNumber,
+    String? organizationType,
+    String? organizationDescription,
+    String? bio,
+    String? email,
+    String? location,
+    String? idUrl,
+    String? lipaNamba,
+    String? bankAccountNumber,
+    String? documentType,
+    String? additionalNotes,
+  }) async {
+    try {
+      // Create the verification request object
+      final request = VerificationRequest(
+        userId: userId,
+        documentType: documentType ?? 'ID',
+        idUrl: idUrl,
+        status: 'pending',
+        notes: additionalNotes,
+      );
+      
+      // Create a map of profile details to update
+      final profileDetails = <String, dynamic>{};
+      if (fullName != null) profileDetails['full_name'] = fullName;
+      if (username != null) profileDetails['username'] = username;
+      if (avatarUrl != null) profileDetails['avatar_url'] = avatarUrl;
+      if (website != null) profileDetails['website'] = website;
+      if (phone != null) profileDetails['phone'] = phone;
+      if (address != null) profileDetails['address'] = address;
+      if (city != null) profileDetails['city'] = city;
+      if (region != null) profileDetails['region'] = region;
+      if (postalCode != null) profileDetails['postal_code'] = postalCode;
+      if (isOrganization != null) profileDetails['is_organization'] = isOrganization;
+      if (organizationName != null) profileDetails['organization_name'] = organizationName;
+      if (organizationRegNumber != null) profileDetails['organization_reg_number'] = organizationRegNumber;
+      if (organizationType != null) profileDetails['organization_type'] = organizationType;
+      if (organizationDescription != null) profileDetails['organization_description'] = organizationDescription;
+      if (bio != null) profileDetails['bio'] = bio;
+      if (email != null) profileDetails['email'] = email;
+      if (location != null) profileDetails['location'] = location;
+      if (idUrl != null) profileDetails['id_url'] = idUrl;
+      if (lipaNamba != null) profileDetails['lipa_namba'] = lipaNamba;
+      if (bankAccountNumber != null) profileDetails['bank_account_number'] = bankAccountNumber;
+      
+      // Submit the verification request and update profile
+      return await createVerificationRequest(request, profileDetails: profileDetails);
     } catch (e) {
       rethrow;
     }
@@ -48,8 +127,20 @@ class VerificationService {
   // Check if user is verified
   static Future<bool> isUserVerified(String userId) async {
     try {
+      // First check verification requests
       final request = await getVerificationRequestByUserId(userId);
-      return request != null && request.status == 'approved';
+      if (request != null && request.status == 'approved') {
+        return true;
+      }
+      
+      // As a fallback, check the profiles table if it has a is_verified column
+      final profileResponse = await _client
+          .from(_profilesTable)
+          .select('is_verified')
+          .eq('id', userId)
+          .maybeSingle();
+          
+      return profileResponse != null && profileResponse['is_verified'] == true;
     } catch (e) {
       return false;
     }
@@ -60,10 +151,14 @@ class VerificationService {
     try {
       final fileExt = filePath.split('.').last;
       final fileName = 'id_document_$userId.$fileExt';
-      final storageResponse = await _client
+      
+      // Create a Dart File object from the file path
+      final file = File(filePath);
+      
+      await _client
           .storage
           .from('verification_documents')
-          .upload(fileName, filePath);
+          .upload(fileName, file);
       
       // Get the public URL of the uploaded file
       final fileUrl = _client
@@ -133,14 +228,51 @@ class VerificationService {
     String requestId,
     String status, {
     String? rejectionReason,
+    Map<String, dynamic>? verificationDetails,
   }) async {
     try {
-      // This would normally check if the current user is an admin
-      await _client.from(_tableName).update({
+      // Update the verification request status
+      final response = await _client.from(_tableName).update({
         'status': status,
         if (rejectionReason != null) 'rejection_reason': rejectionReason,
         'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', requestId);
+      }).eq('id', requestId).select().single();
+      
+      // If approved, update the profiles table
+      if (status == 'approved') {
+        final userId = response['user_id'] as String;
+        
+        // If verification details are provided, update the profiles table
+        if (verificationDetails != null && verificationDetails.isNotEmpty) {
+          await updateUserProfileVerificationDetails(userId, verificationDetails);
+        } else {
+          // Just mark the user as verified in the profiles table
+          await _client.from(_profilesTable).update({
+            'is_verified': true,
+            'updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', userId);
+        }
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+  
+  // Update user profile with verification details
+  static Future<void> updateUserProfileVerificationDetails(
+    String userId,
+    Map<String, dynamic> verificationDetails,
+  ) async {
+    try {
+      // Include the verified status and updated timestamp
+      final dataToUpdate = {
+        ...verificationDetails,
+        'is_verified': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      
+      // Update the profiles table with all the verification details
+      await _client.from(_profilesTable).update(dataToUpdate).eq('id', userId);
     } catch (e) {
       rethrow;
     }

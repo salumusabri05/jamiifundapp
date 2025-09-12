@@ -1,72 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jamiifund/services/supabase_client.dart';
-
-class UserProfile {
-  final String id;
-  final String? email;
-  final String? fullName;
-  final String? phone;
-  final String? avatar;
-  final DateTime? createdAt;
-  final Map<String, dynamic> metadata;
-
-  UserProfile({
-    required this.id,
-    this.email,
-    this.fullName,
-    this.phone,
-    this.avatar,
-    this.createdAt,
-    this.metadata = const {},
-  });
-
-  factory UserProfile.fromSupabaseUser(User user, {Map<String, dynamic> profileData = const {}}) {
-    DateTime? createdAt;
-    try {
-      // Try to get createdAt from profile data first
-      if (profileData['created_at'] != null) {
-        createdAt = DateTime.parse(profileData['created_at']);
-      } else {
-        // Fallback to current time if no date is available
-        createdAt = DateTime.now();
-      }
-    } catch (e) {
-      // Ignore parsing errors and leave createdAt as current time
-      print('Error parsing date: $e');
-      createdAt = DateTime.now();
-    }
-    
-    return UserProfile(
-      id: user.id,
-      email: user.email,
-      fullName: profileData['full_name'] ?? user.userMetadata?['full_name'],
-      phone: profileData['phone'] ?? user.userMetadata?['phone'],
-      avatar: profileData['avatar_url'] ?? user.userMetadata?['avatar_url'],
-      createdAt: createdAt,
-      metadata: user.userMetadata ?? {},
-    );
-  }
-
-  factory UserProfile.empty() {
-    return UserProfile(
-      id: '',
-      email: '',
-      fullName: '',
-      phone: '',
-      avatar: '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'email': email,
-      'full_name': fullName,
-      'phone': phone,
-      'avatar_url': avatar,
-    };
-  }
-}
+import 'package:jamiifund/models/user_profile.dart';
 
 class UserService {
   static SupabaseClient get _client => SupabaseService.client;
@@ -81,9 +15,28 @@ class UserService {
   static bool isAuthenticated() {
     return _client.auth.currentUser != null;
   }
+  
+  // Get user profile by ID
+  static Future<UserProfile?> getUserProfileById(String userId) async {
+    try {
+      final data = await _client
+          .from(_profilesTable)
+          .select()
+          .eq('id', userId)
+          .single();
+          
+      return UserProfile.fromJson(data);
+    } catch (e) {
+      print('Error getting user profile: $e');
+      return null;
+    }
+  }
 
   // Sign in with email and password
-  static Future<AuthResponse> signIn({required String email, required String password}) async {
+  static Future<AuthResponse> signIn({
+    required String email, 
+    required String password
+  }) async {
     return await _client.auth.signInWithPassword(
       email: email,
       password: password,
@@ -95,6 +48,7 @@ class UserService {
     required String email, 
     required String password,
     required String fullName,
+    String? username,
     String? phone,
   }) async {
     final response = await _client.auth.signUp(
@@ -102,22 +56,23 @@ class UserService {
       password: password,
       data: {
         'full_name': fullName,
+        'username': username,
         'phone': phone,
       },
     );
-
+    
+    // If signup successful, create a profile
     if (response.user != null) {
-      // Create a profile record in the profiles table
-      await _client.from(_profilesTable).insert({
+      await _client.from(_profilesTable).upsert({
         'id': response.user!.id,
         'full_name': fullName,
+        'username': username,
         'email': email,
         'phone': phone,
-        'avatar_url': null,
-        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       });
     }
-
+    
     return response;
   }
 
@@ -126,65 +81,119 @@ class UserService {
     await _client.auth.signOut();
   }
 
-  // Get user profile
-  static Future<UserProfile> getUserProfile() async {
-    try {
-      final user = _client.auth.currentUser;
-      
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
-
-      // Fetch additional profile data from profiles table
-      final profileData = await _client
-          .from(_profilesTable)
-          .select()
-          .eq('id', user.id)
-          .single();
-
-      return UserProfile.fromSupabaseUser(user, profileData: profileData);
-    } catch (e) {
-      // If the profile doesn't exist or another error occurs, return basic user data
-      final user = _client.auth.currentUser;
-      if (user != null) {
-        return UserProfile.fromSupabaseUser(user);
-      }
-      throw Exception('Failed to get user profile: $e');
+  // Get current user profile
+  static Future<UserProfile?> getCurrentUserProfile() async {
+    final user = getCurrentUser();
+    if (user == null) {
+      return null;
     }
+    
+    return await getUserProfileById(user.id);
   }
 
   // Update user profile
-  static Future<void> updateUserProfile({
+  static Future<UserProfile?> updateUserProfile({
+    required String userId,
     String? fullName,
-    String? email,
-    String? phone,
+    String? username,
     String? avatarUrl,
+    String? website,
+    String? phone,
+    String? address,
+    String? city,
+    String? region,
+    String? postalCode,
+    bool? isOrganization,
+    String? organizationName,
+    String? organizationRegNumber,
+    String? organizationType,
+    String? organizationDescription,
+    String? bio,
+    String? email,
+    String? location,
+    bool? isVerified,
+    String? idUrl,
   }) async {
-    final user = _client.auth.currentUser;
-    
-    if (user == null) {
-      throw Exception('User not authenticated');
+    try {
+      final dataToUpdate = <String, dynamic>{};
+      
+      if (fullName != null) dataToUpdate['full_name'] = fullName;
+      if (username != null) dataToUpdate['username'] = username;
+      if (avatarUrl != null) dataToUpdate['avatar_url'] = avatarUrl;
+      if (website != null) dataToUpdate['website'] = website;
+      if (phone != null) dataToUpdate['phone'] = phone;
+      if (address != null) dataToUpdate['address'] = address;
+      if (city != null) dataToUpdate['city'] = city;
+      if (region != null) dataToUpdate['region'] = region;
+      if (postalCode != null) dataToUpdate['postal_code'] = postalCode;
+      if (isOrganization != null) dataToUpdate['is_organization'] = isOrganization;
+      if (organizationName != null) dataToUpdate['organization_name'] = organizationName;
+      if (organizationRegNumber != null) dataToUpdate['organization_reg_number'] = organizationRegNumber;
+      if (organizationType != null) dataToUpdate['organization_type'] = organizationType;
+      if (organizationDescription != null) dataToUpdate['organization_description'] = organizationDescription;
+      if (bio != null) dataToUpdate['bio'] = bio;
+      if (email != null) dataToUpdate['email'] = email;
+      if (location != null) dataToUpdate['location'] = location;
+      if (isVerified != null) dataToUpdate['is_verified'] = isVerified;
+      if (idUrl != null) dataToUpdate['id_url'] = idUrl;
+      
+      // Only update if we have data to update
+      if (dataToUpdate.isNotEmpty) {
+        dataToUpdate['updated_at'] = DateTime.now().toIso8601String();
+        
+        await _client
+            .from(_profilesTable)
+            .update(dataToUpdate)
+            .eq('id', userId);
+            
+        return await getUserProfileById(userId);
+      }
+      
+      return await getUserProfileById(userId);
+    } catch (e) {
+      print('Error updating user profile: $e');
+      return null;
     }
-
-    // Update the user metadata
-    await _client.auth.updateUser(
-      UserAttributes(
-        data: {
-          if (fullName != null) 'full_name': fullName,
-          if (phone != null) 'phone': phone,
-          if (avatarUrl != null) 'avatar_url': avatarUrl,
-        },
-      ),
-    );
-
-    // Update the profiles table
-    await _client.from(_profilesTable).upsert({
-      'id': user.id,
-      if (fullName != null) 'full_name': fullName,
-      if (email != null) 'email': email,
-      if (phone != null) 'phone': phone,
-      if (avatarUrl != null) 'avatar_url': avatarUrl,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+  }
+  
+  // Check if user is verified
+  static Future<bool> isUserVerified(String userId) async {
+    try {
+      final data = await _client
+          .from(_profilesTable)
+          .select('is_verified')
+          .eq('id', userId)
+          .single();
+          
+      return data['is_verified'] == true;
+    } catch (e) {
+      print('Error checking if user is verified: $e');
+      return false;
+    }
+  }
+  
+  // Convert a verification request to user profile updates
+  static Map<String, dynamic> verificationRequestToProfileUpdates(Map<String, dynamic> requestData) {
+    final updates = <String, dynamic>{};
+    
+    // Map verification request fields to profile fields
+    if (requestData['full_name'] != null) updates['full_name'] = requestData['full_name'];
+    if (requestData['avatar_url'] != null) updates['avatar_url'] = requestData['avatar_url'];
+    if (requestData['website'] != null) updates['website'] = requestData['website'];
+    if (requestData['phone'] != null) updates['phone'] = requestData['phone'];
+    if (requestData['address'] != null) updates['address'] = requestData['address'];
+    if (requestData['city'] != null) updates['city'] = requestData['city'];
+    if (requestData['region'] != null) updates['region'] = requestData['region'];
+    if (requestData['postal_code'] != null) updates['postal_code'] = requestData['postal_code'];
+    if (requestData['is_organization'] != null) updates['is_organization'] = requestData['is_organization'];
+    if (requestData['organization_name'] != null) updates['organization_name'] = requestData['organization_name'];
+    if (requestData['organization_reg_number'] != null) updates['organization_reg_number'] = requestData['organization_reg_number'];
+    if (requestData['organization_type'] != null) updates['organization_type'] = requestData['organization_type'];
+    if (requestData['organization_description'] != null) updates['organization_description'] = requestData['organization_description'];
+    if (requestData['bio'] != null) updates['bio'] = requestData['bio'];
+    if (requestData['location'] != null) updates['location'] = requestData['location'];
+    if (requestData['id_url'] != null) updates['id_url'] = requestData['id_url'];
+    
+    return updates;
   }
 }

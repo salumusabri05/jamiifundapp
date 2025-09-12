@@ -8,7 +8,7 @@ import 'package:jamiifund/services/verification_service.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 
 class VerificationScreen extends StatefulWidget {
-  const VerificationScreen({Key? key}) : super(key: key);
+  const VerificationScreen({super.key});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -69,27 +69,27 @@ class _VerificationScreenState extends State<VerificationScreen> {
             .single();
             
         setState(() {
-          _fullNameController.text = profileData['full_name'] ?? '';
-          _phoneController.text = profileData['phone'] ?? '';
-          _addressController.text = profileData['address'] ?? '';
-          _cityController.text = profileData['city'] ?? '';
-          _regionController.text = profileData['region'] ?? '';
-          _postalCodeController.text = profileData['postal_code'] ?? '';
-          _websiteController.text = profileData['website'] ?? '';
-          _isOrganization = profileData['is_organization'] ?? false;
-          _organizationNameController.text = profileData['organization_name'] ?? '';
-          _organizationRegNumberController.text = profileData['organization_reg_number'] ?? '';
-          _organizationTypeController.text = profileData['organization_type'] ?? '';
-          _organizationDescriptionController.text = profileData['organization_description'] ?? '';
-          _bioController.text = profileData['bio'] ?? '';
-          _locationController.text = profileData['location'] ?? '';
-          _lipaNambaController.text = profileData['lipa_namba']?.toString() ?? '';
-          _bankAccountNumberController.text = profileData['bank_account_number']?.toString() ?? '';
-        });
+            _fullNameController.text = profileData['full_name'] ?? '';
+            _phoneController.text = profileData['phone'] ?? '';
+            _addressController.text = profileData['address'] ?? '';
+            _cityController.text = profileData['city'] ?? '';
+            _regionController.text = profileData['region'] ?? '';
+            _postalCodeController.text = profileData['postal_code'] ?? '';
+            _websiteController.text = profileData['website'] ?? '';
+            _isOrganization = profileData['is_organization'] ?? false;
+            _organizationNameController.text = profileData['organization_name'] ?? '';
+            _organizationRegNumberController.text = profileData['organization_reg_number'] ?? '';
+            _organizationTypeController.text = profileData['organization_type'] ?? '';
+            _organizationDescriptionController.text = profileData['organization_description'] ?? '';
+            _bioController.text = profileData['bio'] ?? '';
+            _locationController.text = profileData['location'] ?? '';
+            _lipaNambaController.text = profileData['lipa_namba']?.toString() ?? '';
+            _bankAccountNumberController.text = profileData['bank_account_number']?.toString() ?? '';
+          });
+        }
       }
     } catch (e) {
       // Ignore error, user may not have a request yet
-      print('Error checking existing request: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -132,7 +132,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     try {
       final userId = SupabaseService.client.auth.currentUser!.id;
-      String? idUrl = _existingRequest?.idUrl;
+      String idUrl = _existingRequest?.idUrl ?? '';
 
       // Upload ID document if a new one was selected
       if (_idDocument != null) {
