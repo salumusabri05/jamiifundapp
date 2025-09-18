@@ -172,6 +172,25 @@ class UserService {
     }
   }
   
+  // Check if current user is an admin
+  static Future<bool> isUserAdmin() async {
+    try {
+      final user = getCurrentUser();
+      if (user == null) return false;
+      
+      final data = await _client
+          .from(_profilesTable)
+          .select('is_admin')
+          .eq('id', user.id)
+          .single();
+          
+      return data['is_admin'] == true;
+    } catch (e) {
+      print('Error checking if user is admin: $e');
+      return false;
+    }
+  }
+  
   // Convert a verification request to user profile updates
   static Map<String, dynamic> verificationRequestToProfileUpdates(Map<String, dynamic> requestData) {
     final updates = <String, dynamic>{};

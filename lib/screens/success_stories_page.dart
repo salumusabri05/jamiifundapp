@@ -4,7 +4,7 @@ import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
 class SuccessStoriesPage extends StatelessWidget {
-  const SuccessStoriesPage({Key? key}) : super(key: key);
+  const SuccessStoriesPage({super.key});
 
   @override
   Widget build(BuildContext context) {

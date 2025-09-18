@@ -4,7 +4,7 @@ import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
 class TermsOfServicePage extends StatelessWidget {
-  const TermsOfServicePage({Key? key}) : super(key: key);
+  const TermsOfServicePage({super.key});
 
   @override
   Widget build(BuildContext context) {

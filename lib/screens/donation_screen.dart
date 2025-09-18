@@ -9,9 +9,9 @@ class DonationScreen extends StatefulWidget {
   final Campaign campaign;
 
   const DonationScreen({
-    Key? key,
+    super.key,
     required this.campaign,
-  }) : super(key: key);
+  });
 
   @override
   State<DonationScreen> createState() => _DonationScreenState();

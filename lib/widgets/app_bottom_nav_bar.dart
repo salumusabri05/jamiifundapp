@@ -9,9 +9,9 @@ class AppBottomNavBar extends StatefulWidget {
   final int currentIndex;
 
   const AppBottomNavBar({
-    Key? key,
+    super.key,
     this.currentIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<AppBottomNavBar> createState() => _AppBottomNavBarState();

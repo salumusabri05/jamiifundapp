@@ -9,9 +9,10 @@ import 'package:jamiifund/screens/profile_screen.dart';
 import 'package:jamiifund/services/campaign_service.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
+import 'package:jamiifund/widgets/home_components/home_video_player.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -62,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // Separate widget for Home tab content
 class HomeContent extends StatefulWidget {
-  const HomeContent({Key? key}) : super(key: key);
+  const HomeContent({super.key});
 
   @override
   State<HomeContent> createState() => _HomeContentState();
@@ -196,6 +197,14 @@ class _HomeContentState extends State<HomeContent> with TickerProviderStateMixin
                         _buildWelcomeBanner()
                             .animate(controller: _fadeController)
                             .fadeIn(duration: 800.ms, curve: Curves.easeOut),
+                            
+                        const SizedBox(height: 24),
+                        
+                        // Home video player
+                        const HomeVideoPlayer(videoAssetPath: 'assets/videos/fundraisingtips.mp4')
+                            .animate()
+                            .fadeIn(duration: 800.ms, curve: Curves.easeOut)
+                            .slideY(begin: 0.2, end: 0, duration: 800.ms),
                         
                         const SizedBox(height: 16),
                         

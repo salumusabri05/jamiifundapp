@@ -20,7 +20,6 @@ import 'package:jamiifund/screens/support_page.dart';
 import 'package:jamiifund/screens/terms_of_service_page.dart';
 import 'package:jamiifund/theme/app_theme.dart';
 import 'package:jamiifund/theme/colors.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 
 void main() async {

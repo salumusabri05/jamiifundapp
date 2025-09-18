@@ -10,9 +10,9 @@ class CampaignDetailsPage extends StatefulWidget {
   final Campaign campaign;
 
   const CampaignDetailsPage({
-    Key? key,
+    super.key,
     required this.campaign,
-  }) : super(key: key);
+  });
 
   @override
   State<CampaignDetailsPage> createState() => _CampaignDetailsPageState();

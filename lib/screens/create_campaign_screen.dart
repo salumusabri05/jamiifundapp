@@ -8,7 +8,7 @@ import 'package:jamiifund/services/verification_service.dart';
 import 'package:jamiifund/screens/verification_screen.dart';
 
 class CreateCampaignScreen extends StatefulWidget {
-  const CreateCampaignScreen({Key? key}) : super(key: key);
+  const CreateCampaignScreen({super.key});
 
   @override
   State<CreateCampaignScreen> createState() => _CreateCampaignScreenState();

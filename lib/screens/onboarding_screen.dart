@@ -4,7 +4,7 @@ import 'package:jamiifund/screens/home_screen.dart';
 import 'package:jamiifund/screens/auth_page.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({Key? key}) : super(key: key);
+  const OnboardingScreen({super.key});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -169,7 +169,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class ValuePropositionPage extends StatelessWidget {
-  const ValuePropositionPage({Key? key}) : super(key: key);
+  const ValuePropositionPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +222,7 @@ class ValuePropositionPage extends StatelessWidget {
 }
 
 class CallToActionPage extends StatelessWidget {
-  const CallToActionPage({Key? key}) : super(key: key);
+  const CallToActionPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -326,11 +326,11 @@ class FeatureItem extends StatelessWidget {
   final String description;
 
   const FeatureItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.description,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

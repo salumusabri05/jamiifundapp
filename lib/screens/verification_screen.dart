@@ -8,7 +8,7 @@ import 'package:jamiifund/services/verification_service.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 
 class VerificationScreen extends StatefulWidget {
-  const VerificationScreen({Key? key}) : super(key: key);
+  const VerificationScreen({super.key});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();

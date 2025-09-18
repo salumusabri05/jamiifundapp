@@ -7,7 +7,7 @@ import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 import 'package:jamiifund/widgets/verification_status_widget.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();

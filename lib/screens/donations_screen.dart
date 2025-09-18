@@ -5,7 +5,7 @@ import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
 class DonationsScreen extends StatefulWidget {
-  const DonationsScreen({Key? key}) : super(key: key);
+  const DonationsScreen({super.key});
 
   @override
   State<DonationsScreen> createState() => _DonationsScreenState();

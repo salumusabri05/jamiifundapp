@@ -9,10 +9,10 @@ class VerificationStatusWidget extends StatefulWidget {
   final bool compact;
   
   const VerificationStatusWidget({
-    Key? key, 
+    super.key, 
     this.showButton = true,
     this.compact = false,
-  }) : super(key: key);
+  });
 
   @override
   State<VerificationStatusWidget> createState() => _VerificationStatusWidgetState();

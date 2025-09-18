@@ -10,12 +10,12 @@ class PaymentProcessingScreen extends StatefulWidget {
   final String paymentMethod;
 
   const PaymentProcessingScreen({
-    Key? key,
+    super.key,
     required this.campaign,
     required this.amount,
     required this.phoneNumber,
     required this.paymentMethod,
-  }) : super(key: key);
+  });
 
   @override
   State<PaymentProcessingScreen> createState() => _PaymentProcessingScreenState();

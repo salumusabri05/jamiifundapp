@@ -4,7 +4,7 @@ import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
 class FundraisingTipsPage extends StatelessWidget {
-  const FundraisingTipsPage({Key? key}) : super(key: key);
+  const FundraisingTipsPage({super.key});
 
   @override
   Widget build(BuildContext context) {

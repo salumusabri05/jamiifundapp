@@ -4,7 +4,7 @@ import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
 class HowItWorksPage extends StatelessWidget {
-  const HowItWorksPage({Key? key}) : super(key: key);
+  const HowItWorksPage({super.key});
 
   @override
   Widget build(BuildContext context) {
