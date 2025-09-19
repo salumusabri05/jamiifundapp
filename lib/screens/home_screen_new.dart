@@ -73,8 +73,7 @@ class _HomeContentState extends State<HomeContent> {
           setState(() {
             _isVideoInitialized = true;
             _videoController.setLooping(true);
-            // Auto-play the first time
-            _videoController.play();
+            // Remove auto-play to require manual play by user
           });
           print('Video initialized successfully');
         }
@@ -114,6 +113,7 @@ class _HomeContentState extends State<HomeContent> {
           setState(() {
             _isVideoInitialized = true;
             _videoController.setLooping(true);
+            // Do not autoplay - let user control playback
           });
           print('Network video initialized successfully');
         }
@@ -342,12 +342,9 @@ class _HomeContentState extends State<HomeContent> {
                   child: VisibilityDetector(
                     key: const Key('video-player'),
                     onVisibilityChanged: (visibilityInfo) {
-                      if (visibilityInfo.visibleFraction >= 0.8) {
-                        if (_videoController.value.isInitialized) {
-                          _videoController.play();
-                        }
-                      } else {
-                        if (_videoController.value.isInitialized) {
+                      // Only pause when out of view, don't autoplay when in view
+                      if (visibilityInfo.visibleFraction < 0.5) {
+                        if (_videoController.value.isInitialized && _videoController.value.isPlaying) {
                           _videoController.pause();
                         }
                       }

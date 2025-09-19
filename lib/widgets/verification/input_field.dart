@@ -10,6 +10,7 @@ class VerificationInputField extends StatelessWidget {
   final TextInputType keyboardType;
   final int maxLines;
   final bool obscureText;
+  final bool enabled;
   
   const VerificationInputField({
     super.key,
@@ -21,6 +22,7 @@ class VerificationInputField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.maxLines = 1,
     this.obscureText = false,
+    this.enabled = true,
   });
 
   @override
@@ -43,6 +45,7 @@ class VerificationInputField extends StatelessWidget {
       keyboardType: keyboardType,
       obscureText: obscureText,
       maxLines: maxLines,
+      enabled: enabled,
       validator: isRequired ? (value) {
         if (value == null || value.isEmpty) {
           return '$label is required';

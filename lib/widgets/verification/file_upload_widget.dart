@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -85,17 +86,29 @@ class FileUploadWidget extends StatelessWidget {
               child: file != null
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        file!,
-                        fit: BoxFit.cover,
-                        height: 120,
-                        width: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(Icons.file_present, size: 48, color: Colors.grey),
-                          );
-                        },
-                      ),
+                      child: kIsWeb 
+                        ? Image.network(
+                            file!.path,
+                            fit: BoxFit.cover,
+                            height: 120,
+                            width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Icon(Icons.file_present, size: 48, color: Colors.grey),
+                              );
+                            },
+                          )
+                        : Image.file(
+                            file!,
+                            fit: BoxFit.cover,
+                            height: 120,
+                            width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Icon(Icons.file_present, size: 48, color: Colors.grey),
+                              );
+                            },
+                          ),
                     )
                   : existingUrl != null
                       ? ClipRRect(

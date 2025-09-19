@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:jamiifund/models/unified_verification.dart';
 import 'package:jamiifund/models/verification_member.dart';
 import 'package:jamiifund/services/supabase_client.dart';
+import 'package:jamiifund/services/profile_verification_sync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path/path.dart' as path;
 
@@ -33,25 +34,42 @@ class UnifiedVerificationService {
       
       UnifiedVerification savedVerification;
       
-      // If there's an existing verification, update it; otherwise create new
-      if (existingVerification != null) {
-        final response = await _client
-            .from(_tableName)
-            .update(verificationData)
-            .eq('user_id', userId)
-            .select()
-            .single();
-            
-        savedVerification = UnifiedVerification.fromMap(response);
-      } else {
-        final response = await _client
-            .from(_tableName)
-            .insert(verificationData)
-            .select()
-            .single();
-            
-        savedVerification = UnifiedVerification.fromMap(response);
+      try {
+        // If there's an existing verification, update it; otherwise create new
+        if (existingVerification != null) {
+          final response = await _client
+              .from(_tableName)
+              .update(verificationData)
+              .eq('user_id', userId)
+              .select()
+              .maybeSingle();
+              
+          if (response == null) {
+            throw Exception('Failed to update verification record');
+          }
+          savedVerification = UnifiedVerification.fromMap(response);
+        } else {
+          final response = await _client
+              .from(_tableName)
+              .insert(verificationData)
+              .select()
+              .maybeSingle();
+              
+          if (response == null) {
+            throw Exception('Failed to create verification record');
+          }
+          savedVerification = UnifiedVerification.fromMap(response);
+        }
+      } catch (e) {
+        print('Error saving verification: $e');
+        if (e.toString().contains('does not exist')) {
+          throw Exception('The verifications table does not exist. Please run migrations first.');
+        }
+        rethrow;
       }
+      
+      // Sync verification data to profile
+      await ProfileVerificationSync.syncVerificationToProfile(savedVerification);
       
           // If there are members, handle them separately
       if (members.isNotEmpty) {
@@ -94,6 +112,7 @@ class UnifiedVerificationService {
           .from(_tableName)
           .select()
           .eq('id', id)
+          .maybeSingle()
           .single();
       
       // Get the members data
@@ -122,18 +141,30 @@ class UnifiedVerificationService {
   // Get verification by user ID with members
   static Future<UnifiedVerification?> getVerificationByUserId(String userId) async {
     try {
-      // Get the verification ID
+      // Get the verification ID - use maybeSingle to handle no records case
       final verificationData = await _client
           .from(_tableName)
           .select()
           .eq('user_id', userId)
-          .single();
+          .maybeSingle();
+      
+      // If no verification exists, return null
+      if (verificationData == null) {
+        return null;
+      }
       
       // Get the verification with members
       return await getVerificationById(verificationData['id']);
       
     } catch (e) {
       print('Error getting verification by user ID: $e');
+      
+      // Check if the error is because the table doesn't exist
+      if (e.toString().contains('does not exist')) {
+        print('The verifications table does not exist yet. Please run migrations.');
+        return null;
+      }
+      
       return null;
     }
   }

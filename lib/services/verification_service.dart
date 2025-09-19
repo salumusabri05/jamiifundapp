@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:jamiifund/models/verification_request.dart';
 import 'package:jamiifund/services/supabase_client.dart';
+import 'package:jamiifund/services/profile_verification_sync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VerificationService {
@@ -31,7 +32,11 @@ class VerificationService {
         }).eq('id', request.userId!);
       }
       
-      return VerificationRequest.fromMap(response);
+      // Sync with profile using the new service
+      final createdRequest = VerificationRequest.fromMap(response);
+      await ProfileVerificationSync.syncVerificationRequestToProfile(createdRequest);
+      
+      return createdRequest;
     } catch (e) {
       rethrow;
     }
@@ -71,6 +76,9 @@ class VerificationService {
         idUrl: idUrl,
         status: 'pending',
         notes: additionalNotes,
+        fullName: fullName,
+        phoneNumber: phone,
+        address: address,
       );
       
       // Create a map of profile details to update
@@ -127,21 +135,32 @@ class VerificationService {
   // Check if user is verified
   static Future<bool> isUserVerified(String userId) async {
     try {
-      // First check verification requests
-      final request = await getVerificationRequestByUserId(userId);
-      if (request != null && request.status == 'approved') {
-        return true;
-      }
-      
-      // As a fallback, check the profiles table if it has a is_verified column
+      // Primary check: Check the profiles table for is_verified column
       final profileResponse = await _client
           .from(_profilesTable)
           .select('is_verified')
           .eq('id', userId)
           .maybeSingle();
           
-      return profileResponse != null && profileResponse['is_verified'] == true;
+      // If is_verified is true in the profiles table, user is verified
+      if (profileResponse != null && profileResponse['is_verified'] == true) {
+        return true;
+      }
+      
+      // Legacy fallback: check verification requests
+      final request = await getVerificationRequestByUserId(userId);
+      if (request != null && request.status == 'approved') {
+        // Sync this to profiles table for future checks
+        await _client
+            .from(_profilesTable)
+            .update({'is_verified': true})
+            .eq('id', userId);
+        return true;
+      }
+      
+      return false;
     } catch (e) {
+      print('Error checking verification status: $e');
       return false;
     }
   }

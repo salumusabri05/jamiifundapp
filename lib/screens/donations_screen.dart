@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:jamiifund/models/campaign.dart';
+import 'package:jamiifund/services/donation_service.dart';
+import 'package:jamiifund/services/user_service.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
@@ -13,11 +16,52 @@ class DonationsScreen extends StatefulWidget {
 
 class _DonationsScreenState extends State<DonationsScreen> with TickerProviderStateMixin {
   late TabController _tabController;
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _userDonations = [];
+  List<Campaign> _userCampaigns = [];
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadUserData();
+  }
+  
+  Future<void> _loadUserData() async {
+    final user = UserService.getCurrentUser();
+    if (user == null) {
+      setState(() {
+        _errorMessage = 'Please log in to view your donations';
+      });
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+    
+    try {
+      // Load user donations and campaigns in parallel
+      final userDonations = await DonationService.getDonationsByUserId(user.id);
+      final userCampaigns = await DonationService.getCampaignsByUserId(user.id);
+      
+      if (mounted) {
+        setState(() {
+          _userDonations = userDonations;
+          _userCampaigns = userCampaigns;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error loading data: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -53,30 +97,64 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
       ),
       drawer: const AppDrawer(),
       bottomNavigationBar: const AppBottomNavBar(currentIndex: 3),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildDonationsTab(),
-          _buildCampaignsTab(),
-        ],
+      body: RefreshIndicator(
+        onRefresh: _loadUserData,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildDonationsTab(),
+            _buildCampaignsTab(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildDonationsTab() {
-    // This is placeholder data - in a real app you would fetch from your database
-    final donations = List.generate(
-      5,
-      (index) => {
-        'id': 'don_${index + 1}',
-        'campaign': 'Campaign ${index + 1}',
-        'amount': (index + 1) * 100,
-        'date': DateTime.now().subtract(Duration(days: index * 3)),
-        'status': index % 2 == 0 ? 'Completed' : 'Processing',
-      },
-    );
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF8A2BE2),
+        ),
+      );
+    }
+    
+    if (_errorMessage.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Something went wrong',
+              style: GoogleFonts.nunito(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Text(
+                _errorMessage,
+                style: GoogleFonts.nunito(
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
-    if (donations.isEmpty) {
+    if (_userDonations.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -109,9 +187,9 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: donations.length,
+      itemCount: _userDonations.length,
       itemBuilder: (context, index) {
-        final donation = donations[index];
+        final donation = _userDonations[index];
         
         return Card(
           elevation: 2,
@@ -122,7 +200,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
             title: Text(
-              donation['campaign'] as String,
+              donation['campaign_title'] as String,
               style: GoogleFonts.nunito(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -170,6 +248,14 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
             ),
             onTap: () {
               // TODO: Navigate to donation details
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(
+              //     builder: (context) => CampaignDetailsPage(
+              //       campaignId: donation['campaign_id'] as String,
+              //     ),
+              //   ),
+              // );
             },
           ),
         ).animate().fadeIn(duration: 300.ms, delay: (50 * index).ms).slideY(begin: 0.1, end: 0);
@@ -178,21 +264,13 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
   }
 
   Widget _buildCampaignsTab() {
-    // This is placeholder data - in a real app you would fetch from your database
-    final campaigns = List.generate(
-      3,
-      (index) => {
-        'id': 'camp_${index + 1}',
-        'title': 'My Campaign ${index + 1}',
-        'goalAmount': (index + 1) * 1000,
-        'currentAmount': (index + 1) * 500,
-        'endDate': DateTime.now().add(Duration(days: 30 - index * 5)),
-        'donorCount': (index + 1) * 10,
-        'status': index == 0 ? 'Active' : (index == 1 ? 'Completed' : 'Expired'),
-      },
-    );
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
 
-    if (campaigns.isEmpty) {
+    if (_userCampaigns.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -221,7 +299,8 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
-                // TODO: Navigate to create campaign screen
+                // Navigate to create campaign screen
+                Navigator.pushNamed(context, '/create-campaign');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8A2BE2),
@@ -245,16 +324,15 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: campaigns.length,
+      itemCount: _userCampaigns.length,
       itemBuilder: (context, index) {
-        final campaign = campaigns[index];
-        final progress = (campaign['currentAmount'] as int) / (campaign['goalAmount'] as int);
-        final daysLeft = (campaign['endDate'] as DateTime).difference(DateTime.now()).inDays;
+        final campaign = _userCampaigns[index];
+        final double progress = campaign.currentAmount / campaign.goalAmount;
         
         Color statusColor;
-        if (campaign['status'] == 'Active') {
+        if (campaign.isActive) {
           statusColor = Colors.green;
-        } else if (campaign['status'] == 'Completed') {
+        } else if (campaign.isSuccessful) {
           statusColor = Colors.blue;
         } else {
           statusColor = Colors.red;
@@ -276,7 +354,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                   children: [
                     Expanded(
                       child: Text(
-                        campaign['title'] as String,
+                        campaign.title,
                         style: GoogleFonts.nunito(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -290,7 +368,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        campaign['status'] as String,
+                        campaign.isActive ? 'Active' : (campaign.isSuccessful ? 'Completed' : 'Expired'),
                         style: GoogleFonts.nunito(
                           color: statusColor,
                           fontWeight: FontWeight.w600,
@@ -311,13 +389,13 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '\$${campaign['currentAmount']} raised',
+                      '\$${campaign.currentAmount} raised',
                       style: GoogleFonts.nunito(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     Text(
-                      'Goal: \$${campaign['goalAmount']}',
+                      'Goal: \$${campaign.goalAmount}',
                       style: GoogleFonts.nunito(
                         color: Colors.grey[600],
                       ),
@@ -329,14 +407,14 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${campaign['donorCount']} donors',
+                      '${campaign.donorCount} donors',
                       style: GoogleFonts.nunito(
                         color: Colors.grey[600],
                       ),
                     ),
-                    if (campaign['status'] == 'Active')
+                    if (campaign.isActive)
                       Text(
-                        '$daysLeft days left',
+                        '${campaign.daysLeft} days left',
                         style: GoogleFonts.nunito(
                           color: Colors.red[400],
                           fontWeight: FontWeight.w600,
@@ -350,7 +428,12 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                   children: [
                     ElevatedButton.icon(
                       onPressed: () {
-                        // TODO: Edit campaign
+                        // Navigate to campaign edit
+                        Navigator.pushNamed(
+                          context, 
+                          '/edit-campaign',
+                          arguments: {'campaignId': campaign.id},
+                        );
                       },
                       icon: const Icon(Icons.edit_outlined, size: 16),
                       label: const Text('Edit'),
@@ -365,7 +448,12 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                     ),
                     ElevatedButton.icon(
                       onPressed: () {
-                        // TODO: View details
+                        // Navigate to campaign details
+                        Navigator.pushNamed(
+                          context,
+                          '/campaign-details',
+                          arguments: {'id': campaign.id},
+                        );
                       },
                       icon: const Icon(Icons.visibility_outlined, size: 16),
                       label: const Text('Details'),

@@ -8,6 +8,11 @@ class VerificationRequest {
   final String? notes;        // Additional notes for verification
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? fullName;     // Full name of the person being verified
+  final String? phoneNumber;  // Phone number of the person
+  final String? address;      // Address of the person
+  
+  String? get idDocumentUrl => idUrl; // Alias for idUrl to match sync service naming
 
   VerificationRequest({
     this.id,
@@ -19,6 +24,9 @@ class VerificationRequest {
     this.notes,
     DateTime? createdAt,
     this.updatedAt,
+    this.fullName,
+    this.phoneNumber,
+    this.address,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -32,6 +40,9 @@ class VerificationRequest {
       'notes': notes,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      if (fullName != null) 'full_name': fullName,
+      if (phoneNumber != null) 'phone_number': phoneNumber,
+      if (address != null) 'address': address,
     };
   }
 
@@ -46,6 +57,9 @@ class VerificationRequest {
       notes: map['notes'],
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at']) : null,
       updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at']) : null,
+      fullName: map['full_name'],
+      phoneNumber: map['phone_number'],
+      address: map['address'],
     );
   }
 
@@ -59,6 +73,9 @@ class VerificationRequest {
     String? notes,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? fullName,
+    String? phoneNumber,
+    String? address,
   }) {
     return VerificationRequest(
       id: id ?? this.id,
@@ -70,6 +87,9 @@ class VerificationRequest {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      fullName: fullName ?? this.fullName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      address: address ?? this.address,
     );
   }
 }

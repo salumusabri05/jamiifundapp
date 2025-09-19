@@ -42,6 +42,8 @@ class _HomeVideoPlayerState extends State<HomeVideoPlayer> {
   }
   
   void _playPause() {
+    if (!_isInitialized) return;
+    
     setState(() {
       if (_controller.value.isPlaying) {
         _controller.pause();
@@ -64,14 +66,7 @@ class _HomeVideoPlayerState extends State<HomeVideoPlayer> {
           setState(() {
             _isVisible = true;
           });
-          
-          // Auto-play when visible and initialized
-          if (_isInitialized && !_controller.value.isPlaying && !_isPlaying) {
-            // Don't auto-play immediately, give user control
-            setState(() {
-              _isPlaying = false;
-            });
-          }
+          // Video will only play when user clicks play button
         } else {
           setState(() {
             _isVisible = false;

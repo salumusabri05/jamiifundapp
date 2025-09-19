@@ -1,8 +1,10 @@
+import 'package:jamiifund/models/campaign.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DonationService {
   static const String _tableName = 'donations';
+  static const String _campaignsTable = 'campaigns';
   
   // Get Supabase client
   static SupabaseClient get _client => SupabaseService.client;
@@ -93,6 +95,80 @@ class DonationService {
       return response as Map<String, dynamic>;
     } catch (e) {
       throw 'Failed to fetch donation stats: $e';
+    }
+  }
+  
+  // Get donations by user ID
+  static Future<List<Map<String, dynamic>>> getDonationsByUserId(String userId) async {
+    try {
+      // Get donations made by the user
+      final donations = await _client
+          .from(_tableName)
+          .select('''
+            id,
+            campaign_id,
+            amount,
+            donor_name,
+            donor_email,
+            message,
+            anonymous,
+            created_at,
+            campaigns!inner (
+              id,
+              title,
+              description,
+              category,
+              goal_amount,
+              current_amount,
+              end_date,
+              image_url,
+              created_by,
+              is_featured,
+              donor_count,
+              created_by_name,
+              video_url
+            )
+          ''')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+          
+      // Transform the data for easier consumption in the UI
+      final result = (donations as List).map((donation) {
+        final campaign = donation['campaigns'] as Map<String, dynamic>;
+        
+        return {
+          'id': donation['id'],
+          'campaign_id': donation['campaign_id'],
+          'campaign_title': campaign['title'],
+          'campaign_image': campaign['image_url'],
+          'amount': donation['amount'],
+          'date': DateTime.parse(donation['created_at']),
+          'message': donation['message'],
+          'anonymous': donation['anonymous'],
+          'status': 'Completed', // Assuming all donations in the DB are completed
+        };
+      }).toList();
+      
+      return result;
+    } catch (e) {
+      print('Error getting donations: $e');
+      return [];
+    }
+  }
+
+  // Get campaigns created by user
+  static Future<List<Campaign>> getCampaignsByUserId(String userId) async {
+    try {
+      final response = await _client
+          .from(_campaignsTable)
+          .select()
+          .eq('created_by', userId)
+          .order('created_at', ascending: false);
+          
+      return (response as List).map((item) => Campaign.fromMap(item)).toList();
+    } catch (e) {
+      print('Error getting user campaigns: $e');
+      return [];
     }
   }
 }
