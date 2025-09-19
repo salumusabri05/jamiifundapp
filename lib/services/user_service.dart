@@ -1,34 +1,109 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:jamiifund/services/supabase_client.dart';
 import 'package:jamiifund/models/user_profile.dart';
+import 'package:jamiifund/services/supabase_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserService {
-  static SupabaseClient get _client => SupabaseService.client;
+  // Supabase client
+  static SupabaseClient get _supabase => SupabaseService.client;
+  // Expose the Supabase client for use in other places
+  static SupabaseClient get supabase => SupabaseService.client;
   static const String _profilesTable = 'profiles';
+  
+  // For convenience, re-expose the User type from Supabase
+  // No need to create a mock User class
 
   // Get the current authenticated user
   static User? getCurrentUser() {
-    return _client.auth.currentUser;
+    return _supabase.auth.currentUser;
   }
 
   // Check if user is authenticated
   static bool isAuthenticated() {
-    return _client.auth.currentUser != null;
+    return _supabase.auth.currentUser != null;
   }
   
   // Get user profile by ID
   static Future<UserProfile?> getUserProfileById(String userId) async {
     try {
-      final data = await _client
+      final response = await _supabase
           .from(_profilesTable)
           .select()
           .eq('id', userId)
           .single();
-          
-      return UserProfile.fromJson(data);
+      
+      return UserProfile.fromJson(response);
     } catch (e) {
       print('Error getting user profile: $e');
       return null;
+    }
+  }
+  
+  // Get all users
+  static Future<List<UserProfile>> getAllUsers() async {
+    try {
+      final response = await _supabase
+          .from(_profilesTable)
+          .select()
+          .order('full_name', ascending: true);
+      
+      return (response as List).map((item) => UserProfile.fromJson(item)).toList();
+    } catch (e) {
+      throw Exception('Failed to get users: $e');
+    }
+  }
+  
+  // Follow a user
+  static Future<void> followUser(String followerId, String followedId) async {
+    try {
+      await _supabase
+          .from('user_follows')
+          .insert({
+            'follower_id': followerId,
+            'followed_id': followedId,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+    } catch (e) {
+      throw Exception('Failed to follow user: $e');
+    }
+  }
+  
+  // Unfollow a user
+  static Future<void> unfollowUser(String followerId, String followedId) async {
+    try {
+      await _supabase
+          .from('user_follows')
+          .delete()
+          .match({
+            'follower_id': followerId,
+            'followed_id': followedId,
+          });
+    } catch (e) {
+      throw Exception('Failed to unfollow user: $e');
+    }
+  }
+  
+  // Get users followed by the current user
+  static Future<List<UserProfile>> getFollowedUsers(String userId) async {
+    try {
+      final response = await _supabase
+          .from('user_follows')
+          .select('followed_id')
+          .eq('follower_id', userId);
+      
+      final followedIds = (response as List).map((item) => item['followed_id'].toString()).toList();
+      
+      if (followedIds.isEmpty) {
+        return [];
+      }
+      
+      final userResponse = await _supabase
+          .from(_profilesTable)
+          .select()
+          .inFilter('id', followedIds);
+      
+      return (userResponse as List).map((item) => UserProfile.fromJson(item)).toList();
+    } catch (e) {
+      throw Exception('Failed to get followed users: $e');
     }
   }
 
@@ -37,10 +112,14 @@ class UserService {
     required String email, 
     required String password
   }) async {
-    return await _client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      return await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+    } catch (e) {
+      throw Exception('Failed to sign in: $e');
+    }
   }
 
   // Sign up with email and password
@@ -51,34 +130,47 @@ class UserService {
     String? username,
     String? phone,
   }) async {
-    final response = await _client.auth.signUp(
-      email: email,
-      password: password,
-      data: {
-        'full_name': fullName,
-        'username': username,
-        'phone': phone,
-      },
-    );
-    
-    // If signup successful, create a profile
-    if (response.user != null) {
-      await _client.from(_profilesTable).upsert({
-        'id': response.user!.id,
-        'full_name': fullName,
-        'username': username,
-        'email': email,
-        'phone': phone,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+    try {
+      final authResponse = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'full_name': fullName,
+          'username': username,
+          'phone': phone,
+        },
+      );
+      
+      // If sign up successful, create a profile for the user
+      if (authResponse.user != null) {
+        await _supabase
+            .from(_profilesTable)
+            .insert({
+              'id': authResponse.user!.id,
+              'email': email,
+              'full_name': fullName,
+              'username': username,
+              'phone': phone,
+              'avatar_url': null,
+              'bio': null,
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            });
+      }
+      
+      return authResponse;
+    } catch (e) {
+      throw Exception('Failed to sign up: $e');
     }
-    
-    return response;
   }
 
   // Sign out
   static Future<void> signOut() async {
-    await _client.auth.signOut();
+    try {
+      await _supabase.auth.signOut();
+    } catch (e) {
+      throw Exception('Failed to sign out: $e');
+    }
   }
 
   // Get current user profile
@@ -141,14 +233,18 @@ class UserService {
       if (dataToUpdate.isNotEmpty) {
         dataToUpdate['updated_at'] = DateTime.now().toIso8601String();
         
-        await _client
+        // Update the profile in Supabase
+        final response = await _supabase
             .from(_profilesTable)
             .update(dataToUpdate)
-            .eq('id', userId);
-            
-        return await getUserProfileById(userId);
+            .eq('id', userId)
+            .select()
+            .single();
+        
+        return UserProfile.fromJson(response);
       }
       
+      // If no updates, fetch the current profile
       return await getUserProfileById(userId);
     } catch (e) {
       print('Error updating user profile: $e');
@@ -159,13 +255,13 @@ class UserService {
   // Check if user is verified
   static Future<bool> isUserVerified(String userId) async {
     try {
-      final data = await _client
+      final response = await _supabase
           .from(_profilesTable)
           .select('is_verified')
           .eq('id', userId)
           .single();
-          
-      return data['is_verified'] == true;
+      
+      return response['is_verified'] == true;
     } catch (e) {
       print('Error checking if user is verified: $e');
       return false;
@@ -178,16 +274,122 @@ class UserService {
       final user = getCurrentUser();
       if (user == null) return false;
       
-      final data = await _client
+      final response = await _supabase
           .from(_profilesTable)
           .select('is_admin')
           .eq('id', user.id)
           .single();
-          
-      return data['is_admin'] == true;
+      
+      return response['is_admin'] == true;
     } catch (e) {
       print('Error checking if user is admin: $e');
       return false;
+    }
+  }
+  
+  // Get list of users that the current user is mutually following with
+  // (Users who follow the current user AND the current user follows them)
+  static Future<List<UserProfile>> getMutualFollowers(String userId) async {
+    try {
+      // Get users who follow the current user
+      final followersResponse = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('followed_id', userId);
+      
+      final followerIds = (followersResponse as List).map((item) => item['follower_id'].toString()).toList();
+      
+      if (followerIds.isEmpty) {
+        return [];
+      }
+      
+      // Get users whom the current user follows
+      final followingResponse = await _supabase
+          .from('user_follows')
+          .select('followed_id')
+          .eq('follower_id', userId);
+      
+      final followingIds = (followingResponse as List).map((item) => item['followed_id'].toString()).toList();
+      
+      if (followingIds.isEmpty) {
+        return [];
+      }
+      
+      // Find the intersection (mutual followers)
+      final mutualIds = followerIds.where((id) => followingIds.contains(id)).toList();
+      
+      if (mutualIds.isEmpty) {
+        return [];
+      }
+      
+      // Get user profiles for mutual followers
+      final userResponse = await _supabase
+          .from(_profilesTable)
+          .select()
+          .inFilter('id', mutualIds);
+      
+      return (userResponse as List).map((item) => UserProfile.fromJson(item)).toList();
+    } catch (e) {
+      print('Error getting mutual followers: $e');
+      throw Exception('Failed to get mutual followers: $e');
+    }
+  }
+  
+  // Check if users are mutually following each other
+  static Future<bool> areMutualFollowers(String userId1, String userId2) async {
+    try {
+      // Check if user1 follows user2
+      final follows1to2Response = await _supabase
+          .from('user_follows')
+          .select()
+          .eq('follower_id', userId1)
+          .eq('followed_id', userId2);
+      
+      // Check if user2 follows user1
+      final follows2to1Response = await _supabase
+          .from('user_follows')
+          .select()
+          .eq('follower_id', userId2)
+          .eq('followed_id', userId1);
+      
+      return (follows1to2Response as List).isNotEmpty && 
+             (follows2to1Response as List).isNotEmpty;
+    } catch (e) {
+      print('Error checking mutual follow status: $e');
+      return false;
+    }
+  }
+  
+  // Get mutual followers count for a user
+  static Future<int> getMutualFollowersCount(String userId1, String userId2) async {
+    try {
+      // Get followers of user1
+      final user1FollowersResponse = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('followed_id', userId1);
+      
+      final user1FollowerIds = (user1FollowersResponse as List)
+          .map((item) => item['follower_id'].toString())
+          .toSet();
+      
+      // Get followers of user2
+      final user2FollowersResponse = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('followed_id', userId2);
+      
+      final user2FollowerIds = (user2FollowersResponse as List)
+          .map((item) => item['follower_id'].toString())
+          .toSet();
+      
+      // Find intersection of the two sets
+      final mutualFollowerIds = user1FollowerIds.intersection(user2FollowerIds);
+      
+      return mutualFollowerIds.length;
+    } catch (e) {
+      print('Error getting mutual followers count: $e');
+      return 0;
     }
   }
   

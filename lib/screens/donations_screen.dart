@@ -96,7 +96,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
         ),
       ),
       drawer: const AppDrawer(),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 3),
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 4), // Updated to 4 since we added community tab
       body: RefreshIndicator(
         onRefresh: _loadUserData,
         child: TabBarView(

@@ -4,6 +4,7 @@ import 'package:jamiifund/screens/discover_screen.dart';
 import 'package:jamiifund/screens/donations_screen.dart';
 import 'package:jamiifund/screens/home_screen_new.dart';
 import 'package:jamiifund/screens/profile_screen.dart';
+import 'package:jamiifund/screens/users_screen.dart';
 
 class AppBottomNavBar extends StatefulWidget {
   final int currentIndex;
@@ -38,16 +39,22 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
       case 2:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const CreateCampaignScreen()),
+          MaterialPageRoute(builder: (context) => const UsersScreen()),
         );
         break;
       case 3:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DonationsScreen()),
+          MaterialPageRoute(builder: (context) => const CreateCampaignScreen()),
         );
         break;
       case 4:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DonationsScreen()),
+        );
+        break;
+      case 5:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const ProfileScreen()),
@@ -73,6 +80,10 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
         BottomNavigationBarItem(
           icon: Icon(Icons.search),
           label: 'Discover',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people_outline),
+          label: 'Community',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.add_circle_outline),

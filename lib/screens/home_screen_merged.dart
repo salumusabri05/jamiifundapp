@@ -21,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final int _selectedIndex = 0;
   int _unreadChatCount = 0;
   int _unreadNotificationsCount = 0;
   
@@ -33,6 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // Fetch unread notification and chat counts
   Future<void> _fetchUnreadCounts() async {
     try {
+      // First check connection to Supabase
+      final connectionStatus = await SupabaseService.checkConnection();
+      if (!connectionStatus.isConnected) {
+        throw Exception('Unable to connect to the server: ${connectionStatus.message}');
+      }
+      
       // Get the current user ID - replace with your actual implementation
       final userId = 'user1'; // This should be replaced with the actual logged-in user ID
       
@@ -50,6 +57,22 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       print('Error fetching unread counts: $e');
+      
+      if (mounted) {
+        // Show a snackbar with the error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update notifications: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _fetchUnreadCounts,
+              textColor: Colors.white,
+            ),
+          ),
+        );
+      }
     }
   }
   
@@ -108,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const ChatScreen()),
-            ),
+            ).then((_) => _fetchUnreadCounts()), // Refresh counts after returning
             tooltip: 'Messages',
           ),
           IconButton(
@@ -121,14 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const NotificationsScreen()),
-            ),
+            ).then((_) => _fetchUnreadCounts()), // Refresh counts after returning
             tooltip: 'Notifications',
           ),
         ],
       ),
       drawer: const AppDrawer(),
       body: const HomeContent(),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
+      bottomNavigationBar: AppBottomNavBar(currentIndex: _selectedIndex),
     );
   }
 }
@@ -196,8 +219,8 @@ class _HomeContentState extends State<HomeContent> {
   void _initializeNetworkVideo() {
     try {
       // Use a sample video from the internet as fallback
-      _videoController = VideoPlayerController.networkUrl(
-        Uri.parse('https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4')
+      _videoController = VideoPlayerController.network(
+        'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4'
       );
       
       _videoController.initialize().then((_) {

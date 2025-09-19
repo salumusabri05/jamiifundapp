@@ -1,8 +1,8 @@
 class UserProfile {
-  final String? id;
+  final String id;
   final DateTime? updatedAt;
   final String? username;
-  final String? fullName;
+  final String fullName;
   final String? avatarUrl;
   final String? website;
   final String? phone;
@@ -22,10 +22,10 @@ class UserProfile {
   final String? idUrl;
   
   UserProfile({
-    this.id,
+    required this.id,
     this.updatedAt,
     this.username,
-    this.fullName,
+    required this.fullName,
     this.avatarUrl,
     this.website,
     this.phone,
@@ -47,12 +47,12 @@ class UserProfile {
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      id: json['id'],
+      id: json['id'] as String,
       updatedAt: json['updated_at'] != null 
           ? DateTime.parse(json['updated_at']) 
           : null,
       username: json['username'],
-      fullName: json['full_name'],
+      fullName: json['full_name'] as String? ?? 'User',
       avatarUrl: json['avatar_url'],
       website: json['website'],
       phone: json['phone'],

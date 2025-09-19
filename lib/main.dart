@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jamiifund/models/campaign.dart';
+import 'package:jamiifund/models/user_profile.dart';
 import 'package:jamiifund/screens/about_us_page.dart';
 import 'package:jamiifund/screens/auth_page.dart';
 import 'package:jamiifund/screens/blog_page.dart';
 import 'package:jamiifund/screens/campaign_details_page.dart';
+import 'package:jamiifund/screens/chat_detail_screen.dart';
 import 'package:jamiifund/screens/community_guidelines_page.dart';
 import 'package:jamiifund/screens/create_campaign_screen.dart';
 import 'package:jamiifund/screens/discover_screen.dart';
@@ -13,6 +15,8 @@ import 'package:jamiifund/screens/fundraising_tips_page.dart';
 import 'package:jamiifund/screens/home_screen_new.dart' as home;
 import 'package:jamiifund/screens/how_it_works_page.dart';
 import 'package:jamiifund/screens/onboarding_screen.dart';
+import 'package:jamiifund/screens/user_detail_screen.dart';
+import 'package:jamiifund/screens/users_screen.dart';
 import 'package:jamiifund/screens/profile_screen.dart';
 import 'package:jamiifund/screens/splash_screen.dart';
 import 'package:jamiifund/screens/success_stories_page.dart';
@@ -24,10 +28,6 @@ import 'package:jamiifund/services/supabase_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Supabase
-  await SupabaseService.initialize();
-  print('Supabase initialized successfully');
   
   // Set preferred orientations
   SystemChrome.setPreferredOrientations([
@@ -44,6 +44,15 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+  
+  // Initialize Supabase with error handling
+  try {
+    await SupabaseService.initialize();
+    print('Supabase initialized successfully');
+  } catch (e) {
+    print('Failed to initialize Supabase: $e');
+    // Continue with app launch anyway, services will handle reconnection attempts
+  }
   
   runApp(const MainApp());
 }
@@ -67,6 +76,7 @@ class MainApp extends StatelessWidget {
         '/create': (context) => const CreateCampaignScreen(),
         '/donations': (context) => const DonationsScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/users': (context) => const UsersScreen(),
         // Drawer pages
         '/about_us': (context) => const AboutUsPage(),
         '/how_it_works': (context) => const HowItWorksPage(),
@@ -84,6 +94,20 @@ class MainApp extends StatelessWidget {
           return MaterialPageRoute(
             builder: (context) => CampaignDetailsPage(
               campaign: campaign,
+            ),
+          );
+        } else if (settings.name == '/user_detail') {
+          final UserProfile user = settings.arguments as UserProfile;
+          return MaterialPageRoute(
+            builder: (context) => UserDetailScreen(
+              user: user,
+            ),
+          );
+        } else if (settings.name == '/chat_detail') {
+          final UserProfile recipient = settings.arguments as UserProfile;
+          return MaterialPageRoute(
+            builder: (context) => ChatDetailScreen(
+              recipient: recipient,
             ),
           );
         }

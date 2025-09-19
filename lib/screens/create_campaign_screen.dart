@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
@@ -6,6 +8,8 @@ import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 import 'package:jamiifund/services/user_service.dart';
 import 'package:jamiifund/services/verification_service.dart';
 import 'package:jamiifund/screens/verification_screen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 
 class CreateCampaignScreen extends StatefulWidget {
   const CreateCampaignScreen({super.key});
@@ -19,11 +23,15 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _goalAmountController = TextEditingController();
+  final _videoUrlController = TextEditingController();
   
   DateTime _endDate = DateTime.now().add(const Duration(days: 30));
   String _selectedCategory = 'Education';
   bool _isVerified = false;
   bool _isLoading = true;
+  
+  final List<XFile> _selectedImages = [];
+  final ImagePicker _picker = ImagePicker();
   
   final List<String> _categories = [
     'Education',
@@ -79,6 +87,7 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _goalAmountController.dispose();
+    _videoUrlController.dispose();
     super.dispose();
   }
   
@@ -164,7 +173,7 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
         backgroundColor: Colors.white,
       ),
       drawer: const AppDrawer(),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 2),
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 3), // Updated to 3 since we added community tab
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : !_isVerified
@@ -186,6 +195,8 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
               const SizedBox(height: 16.0),
               _buildEndDatePicker(),
               const SizedBox(height: 16.0),
+              _buildVideoUrlField(),
+              const SizedBox(height: 16.0),
               _buildDescriptionField(),
               const SizedBox(height: 32.0),
               _buildSubmitButton(),
@@ -196,39 +207,178 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     );
   }
 
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> images = await _picker.pickMultiImage();
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking images: ${e.toString()}')),
+      );
+    }
+  }
+  
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
   Widget _buildImageSelector() {
-    return InkWell(
-      onTap: () {
-        // TODO: Implement image picking
-      },
-      child: Container(
-        height: 180,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.0),
-          border: Border.all(color: Colors.grey.shade300),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Campaign Images',
+          style: GoogleFonts.nunito(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
         ),
-        child: Center(
+        const SizedBox(height: 8.0),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.add_photo_alternate_outlined,
-                size: 48,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 8.0),
-              Text(
-                'Add Campaign Image',
-                style: GoogleFonts.nunito(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w600,
+              if (_selectedImages.isEmpty)
+                InkWell(
+                  onTap: _pickImages,
+                  child: Container(
+                    height: 180,
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 8.0),
+                        Text(
+                          'Add Campaign Images',
+                          style: GoogleFonts.nunito(
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        Text(
+                          'Select multiple images',
+                          style: GoogleFonts.nunito(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Selected Images (${_selectedImages.length})',
+                            style: GoogleFonts.nunito(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _pickImages,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Add More'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF8A2BE2),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8.0),
+                      SizedBox(
+                        height: 120,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selectedImages.length,
+                          itemBuilder: (context, index) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8.0),
+                                    child: kIsWeb
+                                      ? Image.network(
+                                          _selectedImages[index].path,
+                                          width: 120,
+                                          height: 120,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            width: 120,
+                                            height: 120,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.broken_image),
+                                          ),
+                                        )
+                                      : Image.file(
+                                          File(_selectedImages[index].path),
+                                          width: 120,
+                                          height: 120,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            width: 120,
+                                            height: 120,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.broken_image),
+                                          ),
+                                        ),
+                                  ),
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: InkWell(
+                                      onTap: () => _removeImage(index),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          size: 16,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
-      ),
+      ],
     ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2, end: 0, duration: 300.ms);
   }
 
@@ -344,6 +494,37 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
       ),
     ).animate().fadeIn(duration: 300.ms, delay: 250.ms).slideY(begin: 0.2, end: 0, duration: 300.ms);
   }
+  
+  Widget _buildVideoUrlField() {
+    return TextFormField(
+      controller: _videoUrlController,
+      decoration: InputDecoration(
+        labelText: 'Video URL (Optional)',
+        labelStyle: GoogleFonts.nunito(color: Colors.grey[600]),
+        hintText: 'Enter YouTube or other video link',
+        hintStyle: GoogleFonts.nunito(color: Colors.grey[400]),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        prefixIcon: const Icon(Icons.video_library_outlined),
+      ),
+      validator: (value) {
+        if (value != null && value.isNotEmpty) {
+          // Simple URL validation
+          final urlPattern = RegExp(
+            r'^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be|vimeo\.com)\/.*',
+            caseSensitive: false,
+          );
+          if (!urlPattern.hasMatch(value)) {
+            return 'Please enter a valid video URL';
+          }
+        }
+        return null;
+      },
+    ).animate().fadeIn(duration: 300.ms, delay: 275.ms).slideY(begin: 0.2, end: 0, duration: 300.ms);
+  }
 
   Widget _buildDescriptionField() {
     return TextFormField(
@@ -372,19 +553,115 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     ).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.2, end: 0, duration: 300.ms);
   }
 
+  Future<void> _createCampaign() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    
+    if (_selectedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one image for your campaign'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Creating campaign...'),
+        backgroundColor: Color(0xFF8A2BE2),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    
+    try {
+      setState(() => _isLoading = true);
+      
+      final user = UserService.getCurrentUser();
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+      
+      // Get user profile to access the name
+      final userProfile = await UserService.getUserProfileById(user.id);
+      if (userProfile == null) {
+        throw Exception('User profile not found');
+      }
+      
+      // 1. Upload images to storage and get URLs
+      String? imageUrl;
+      if (_selectedImages.isNotEmpty) {
+        final file = _selectedImages.first;
+        final fileBytes = await file.readAsBytes();
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(file.path)}';
+        final filePath = 'campaign_images/${user.id}/$fileName';
+        
+        // Upload to Supabase storage
+        await UserService.supabase
+            .storage
+            .from('campaign_images')
+            .uploadBinary(filePath, fileBytes);
+            
+        // Get public URL
+        imageUrl = UserService.supabase
+            .storage
+            .from('campaign_images')
+            .getPublicUrl(filePath);
+      }
+      
+      // 2. Create campaign in Supabase
+      final campaign = {
+        'title': _titleController.text,
+        'description': _descriptionController.text,
+        'category': _selectedCategory,
+        'goal_amount': int.parse(_goalAmountController.text),
+        'current_amount': 0,
+        'end_date': _endDate.toIso8601String(),
+        'image_url': imageUrl,
+        'created_by': user.id,
+        'created_by_name': userProfile.fullName,
+        'is_featured': false,
+        'donor_count': 0,
+        'video_url': _videoUrlController.text.isNotEmpty ? _videoUrlController.text : null,
+      };
+      
+      // Insert into campaigns table
+      final response = await UserService.supabase
+          .from('campaigns')
+          .insert(campaign)
+          .select();
+      
+      if (mounted) {
+        setState(() => _isLoading = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Campaign created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Navigate to discover screen
+        Navigator.pushReplacementNamed(context, '/discover');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating campaign: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildSubmitButton() {
     return ElevatedButton(
-      onPressed: () {
-        if (_formKey.currentState!.validate()) {
-          // TODO: Implement campaign creation
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Creating campaign...'),
-              backgroundColor: Color(0xFF8A2BE2),
-            ),
-          );
-        }
-      },
+      onPressed: _createCampaign,
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF8A2BE2),
         padding: const EdgeInsets.symmetric(vertical: 16.0),

@@ -6,7 +6,10 @@ import 'package:jamiifund/screens/discover_screen.dart';
 import 'package:jamiifund/screens/create_campaign_screen.dart';
 import 'package:jamiifund/screens/donations_screen.dart';
 import 'package:jamiifund/screens/profile_screen.dart';
+import 'package:jamiifund/screens/chat_screen.dart';
+import 'package:jamiifund/screens/notifications_screen.dart';
 import 'package:jamiifund/services/campaign_service.dart';
+import 'package:jamiifund/services/notification_service.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 import 'package:jamiifund/widgets/home_components/home_video_player.dart';
@@ -20,11 +23,45 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  
+  // Mock unread counts - to be replaced with real data from NotificationService
+  final int _unreadChatCount = 3;
+  final int _unreadNotificationsCount = 5;
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
+  }
+  
+  Widget _buildUnreadIndicator(int count) {
+    if (count <= 0) {
+      return const SizedBox.shrink();
+    }
+    
+    return Positioned(
+      right: 0,
+      top: 0,
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        constraints: const BoxConstraints(
+          minWidth: 14,
+          minHeight: 14,
+        ),
+        child: Text(
+          count > 9 ? '9+' : count.toString(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 8,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
   }
 
   @override
@@ -50,6 +87,34 @@ class _HomeScreenState extends State<HomeScreen> {
         iconTheme: const IconThemeData(color: Color(0xFF8A2BE2)),
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Stack(
+              children: [
+                const Icon(Icons.chat_outlined),
+                _buildUnreadIndicator(_unreadChatCount),
+              ],
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ChatScreen()),
+            ),
+            tooltip: 'Messages',
+          ),
+          IconButton(
+            icon: Stack(
+              children: [
+                const Icon(Icons.notifications_outlined),
+                _buildUnreadIndicator(_unreadNotificationsCount),
+              ],
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+            ),
+            tooltip: 'Notifications',
+          ),
+        ],
       ),
       drawer: const AppDrawer(),
       body: IndexedStack(
