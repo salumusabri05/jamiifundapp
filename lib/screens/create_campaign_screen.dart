@@ -597,18 +597,18 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
         final file = _selectedImages.first;
         final fileBytes = await file.readAsBytes();
         final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(file.path)}';
-        final filePath = 'campaign_images/${user.id}/$fileName';
+        final filePath = 'campaign-images/${user.id}/$fileName';
         
         // Upload to Supabase storage
         await UserService.supabase
             .storage
-            .from('campaign_images')
+            .from('campaign-images')
             .uploadBinary(filePath, fileBytes);
             
         // Get public URL
         imageUrl = UserService.supabase
             .storage
-            .from('campaign_images')
+            .from('campaign-images')
             .getPublicUrl(filePath);
       }
       
