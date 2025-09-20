@@ -173,7 +173,7 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
         backgroundColor: Colors.white,
       ),
       drawer: const AppDrawer(),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 3), // Updated to 3 since we added community tab
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 2), // Updated to 2 for create campaign tab
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : !_isVerified

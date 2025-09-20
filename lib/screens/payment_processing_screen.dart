@@ -2,12 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/campaign.dart';
+import 'package:jamiifund/models/donation.dart';
+import 'package:jamiifund/services/donation_service.dart';
 
 class PaymentProcessingScreen extends StatefulWidget {
   final Campaign campaign;
   final double amount;
   final String phoneNumber;
   final String paymentMethod;
+  final String? donorName;
+  final String? donorEmail;
+  final String? message;
+  final bool anonymous;
 
   const PaymentProcessingScreen({
     super.key,
@@ -15,6 +21,10 @@ class PaymentProcessingScreen extends StatefulWidget {
     required this.amount,
     required this.phoneNumber,
     required this.paymentMethod,
+    this.donorName,
+    this.donorEmail,
+    this.message,
+    this.anonymous = false,
   });
 
   @override
@@ -42,19 +52,42 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   void _processPayment() async {
     // In a real app, you'd integrate with a payment gateway here
-    // For this demo, we'll simulate a payment process
-    
-    // Simulate API call delay
-    await Future.delayed(const Duration(seconds: 3));
-    
-    // Simulate successful payment
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-        _isSuccess = true;
-        _message = 'Payment successful!';
-        _startCountdown();
-      });
+    try {
+      // Simulate API call delay
+      await Future.delayed(const Duration(seconds: 3));
+      
+      // Create donation data
+      final donation = {
+        'campaign_id': widget.campaign.id,
+        'amount': widget.amount,
+        'donor_name': widget.donorName,
+        'donor_email': widget.donorEmail,
+        'message': widget.message,
+        'anonymous': widget.anonymous,
+        'payment_method': widget.paymentMethod,
+      };
+      
+      // Create the donation in Supabase
+      await DonationService.createDonation(donation);
+      
+      // Simulate successful payment
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _isSuccess = true;
+          _message = 'Payment successful!';
+          _startCountdown();
+        });
+      }
+    } catch (e) {
+      // Handle payment failure
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _isSuccess = false;
+          _message = 'Payment failed: ${e.toString()}';
+        });
+      }
     }
     
     // In a real scenario, you'd handle different payment results:

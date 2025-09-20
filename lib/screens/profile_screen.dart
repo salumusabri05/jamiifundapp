@@ -180,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
         ],
       ),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 5), // Updated to 5 since we added community tab
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 4), // Updated to 4 for profile tab
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

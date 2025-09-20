@@ -1,6 +1,7 @@
 import 'package:jamiifund/models/campaign.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:jamiifund/services/user_service.dart';
 
 class DonationService {
   static const String _tableName = 'donations';
@@ -12,6 +13,10 @@ class DonationService {
   // Create a new donation
   static Future<Map<String, dynamic>> createDonation(Map<String, dynamic> donation) async {
     try {
+      // Get the current user ID
+      final currentUser = UserService.getCurrentUser();
+      final userId = currentUser?.id;
+      
       final response = await _client
           .from(_tableName)
           .insert({
@@ -21,6 +26,7 @@ class DonationService {
             'donor_email': donation['donor_email'],
             'message': donation['message'],
             'anonymous': donation['anonymous'],
+            'user_id': userId, // Add the user_id field
             // Note: phone_number is not in the schema, but we'll store it for demonstration
             // In a real app, you'd add this column to the table or use a separate table
             // for payment processing details
@@ -101,19 +107,36 @@ class DonationService {
   // Get donations by user ID
   static Future<List<Map<String, dynamic>>> getDonationsByUserId(String userId) async {
     try {
+      print('Getting donations for user: $userId');
+      
+      // Check if user_id column exists in the donations table
+      try {
+        // First, let's debug what's in the donations table
+        final allDonations = await _client
+            .from(_tableName)
+            .select('id, user_id, campaign_id')
+            .limit(5);
+            
+        print('Sample donations: $allDonations');
+      } catch (e) {
+        print('Debug query error: $e');
+      }
+      
       // Get donations made by the user
       final donations = await _client
           .from(_tableName)
           .select('''
             id,
             campaign_id,
+            user_id,
             amount,
             donor_name,
             donor_email,
             message,
             anonymous,
             created_at,
-            campaigns!inner (
+            payment_method,
+            campaigns!donations_campaign_id_fkey (
               id,
               title,
               description,
@@ -145,6 +168,9 @@ class DonationService {
           'date': DateTime.parse(donation['created_at']),
           'message': donation['message'],
           'anonymous': donation['anonymous'],
+          'donor_name': donation['donor_name'],
+          'donor_email': donation['donor_email'],
+          'payment_method': donation['payment_method'] ?? 'Unknown',
           'status': 'Completed', // Assuming all donations in the DB are completed
         };
       }).toList();

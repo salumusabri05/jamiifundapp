@@ -6,6 +6,7 @@ import 'package:jamiifund/services/donation_service.dart';
 import 'package:jamiifund/services/user_service.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
+import 'package:jamiifund/screens/donation_details_screen.dart';
 
 class DonationsScreen extends StatefulWidget {
   const DonationsScreen({super.key});
@@ -37,6 +38,9 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
       return;
     }
     
+    print('Current user ID: ${user.id}');
+    print('Current user email: ${user.email}');
+    
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -47,6 +51,9 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
       final userDonations = await DonationService.getDonationsByUserId(user.id);
       final userCampaigns = await DonationService.getCampaignsByUserId(user.id);
       
+      print('Fetched ${userDonations.length} donations');
+      print('Fetched ${userCampaigns.length} campaigns');
+      
       if (mounted) {
         setState(() {
           _userDonations = userDonations;
@@ -55,6 +62,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
         });
       }
     } catch (e) {
+      print('Error in _loadUserData: $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Error loading data: $e';
@@ -96,7 +104,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
         ),
       ),
       drawer: const AppDrawer(),
-      bottomNavigationBar: const AppBottomNavBar(currentIndex: 4), // Updated to 4 since we added community tab
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 3), // Updated to 3 for donations tab
       body: RefreshIndicator(
         onRefresh: _loadUserData,
         child: TabBarView(
@@ -217,24 +225,44 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
                   ),
                 ),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: donation['status'] == 'Completed' 
-                        ? Colors.green.shade100 
-                        : Colors.orange.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    donation['status'] as String,
-                    style: GoogleFonts.nunito(
-                      color: donation['status'] == 'Completed' 
-                          ? Colors.green.shade800 
-                          : Colors.orange.shade800,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: donation['status'] == 'Completed' 
+                            ? Colors.green.shade100 
+                            : Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        donation['status'] as String,
+                        style: GoogleFonts.nunito(
+                          color: donation['status'] == 'Completed' 
+                              ? Colors.green.shade800 
+                              : Colors.orange.shade800,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        donation['payment_method'] as String,
+                        style: GoogleFonts.nunito(
+                          color: Colors.blue.shade800,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -247,15 +275,15 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
               ),
             ),
             onTap: () {
-              // TODO: Navigate to donation details
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => CampaignDetailsPage(
-              //       campaignId: donation['campaign_id'] as String,
-              //     ),
-              //   ),
-              // );
+              // Navigate to donation details
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DonationDetailsScreen(
+                    donation: donation,
+                  ),
+                ),
+              );
             },
           ),
         ).animate().fadeIn(duration: 300.ms, delay: (50 * index).ms).slideY(begin: 0.1, end: 0);

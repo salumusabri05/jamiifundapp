@@ -137,6 +137,19 @@ class CampaignService {
     }, maxRetries: 2);
   }
   
+  // Get campaign details by ID as a map
+  static Future<Map<String, dynamic>> getCampaignDetailsById(String id) async {
+    return _withRetry(() async {
+      final response = await _client
+          .from(_tableName)
+          .select()
+          .eq('id', id)
+          .single();
+      
+      return response;
+    }, maxRetries: 2);
+  }
+  
   // Update campaign
   static Future<Campaign> updateCampaign(Campaign campaign) async {
     return _withRetry(() async {

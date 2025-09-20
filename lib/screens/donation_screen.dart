@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/campaign.dart';
 import 'package:jamiifund/screens/payment_processing_screen.dart';
+import 'package:jamiifund/screens/stripe_payment_screen.dart';
 import 'package:jamiifund/services/donation_service.dart';
 
 class DonationScreen extends StatefulWidget {
@@ -72,10 +73,40 @@ class _DonationScreenState extends State<DonationScreen> {
         _errorMessage = null;
       });
       
+      // Parse donation amount
+      final amount = double.parse(_amountController.text);
+      
+      // Handle different payment methods
+      if (_selectedPaymentMethod == 'Credit Card') {
+        // Navigate to the Stripe payment screen
+        setState(() {
+          _isLoading = false;
+        });
+        
+        if (!mounted) return;
+        
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StripePaymentScreen(
+              campaign: widget.campaign,
+              amount: amount,
+            ),
+          ),
+        );
+        
+        if (result == true && mounted) {
+          Navigator.pop(context, true);
+        }
+        
+        return;
+      }
+      
+      // For other payment methods (mobile money), continue with the regular flow
       // Create donation data
       final donation = {
         'campaign_id': widget.campaign.id,
-        'amount': double.parse(_amountController.text),
+        'amount': amount,
         'phone_number': _phoneNumberController.text,
         'donor_name': _isAnonymous ? null : _nameController.text,
         'donor_email': _isAnonymous ? null : _emailController.text,
@@ -96,9 +127,13 @@ class _DonationScreenState extends State<DonationScreen> {
         MaterialPageRoute(
           builder: (context) => PaymentProcessingScreen(
             campaign: widget.campaign,
-            amount: double.parse(_amountController.text),
+            amount: amount,
             phoneNumber: _phoneNumberController.text,
             paymentMethod: _selectedPaymentMethod,
+            donorName: _isAnonymous ? null : _nameController.text,
+            donorEmail: _isAnonymous ? null : _emailController.text,
+            message: _messageController.text.isEmpty ? null : _messageController.text,
+            anonymous: _isAnonymous,
           ),
         ),
       );

@@ -44,16 +44,10 @@ class _AppBottomNavBarState extends State<AppBottomNavBar> {
       case 3:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const CreateCampaignScreen()),
-        );
-        break;
-      case 4:
-        Navigator.pushReplacement(
-          context,
           MaterialPageRoute(builder: (context) => const DonationsScreen()),
         );
         break;
-      case 5:
+      case 4:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const ProfileScreen()),

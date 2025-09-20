@@ -9,6 +9,28 @@ class UserService {
   static SupabaseClient get supabase => SupabaseService.client;
   static const String _profilesTable = 'profiles';
   
+  // Helper method to format auth error messages
+  static String formatAuthError(String errorMessage) {
+    if (errorMessage.contains('unique constraint')) {
+      return 'This email is already registered.';
+    } else if (errorMessage.contains('invalid login')) {
+      return 'Invalid email or password. Please try again.';
+    } else if (errorMessage.contains('Email not confirmed')) {
+      return 'Please confirm your email before signing in.';
+    } else if (errorMessage.contains('weak password')) {
+      return 'Password is too weak. Please use a stronger password.';
+    } else if (errorMessage.contains('network')) {
+      return 'Network error. Please check your internet connection.';
+    } else if (errorMessage.contains('timeout')) {
+      return 'Connection timeout. Please try again later.';
+    } else if (errorMessage.contains('not found')) {
+      return 'Account not found. Please check your email or sign up.';
+    }
+    
+    // Default message
+    return 'An error occurred. Please try again.';
+  }
+  
   // For convenience, re-expose the User type from Supabase
   // No need to create a mock User class
 
@@ -276,22 +298,51 @@ class UserService {
   }
 
   // Sign in with email and password
-  static Future<AuthResponse> signIn({
+  static Future<Map<String, dynamic>> signIn({
     required String email, 
     required String password
   }) async {
     try {
-      return await _supabase.auth.signInWithPassword(
+      final response = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
+      
+      if (response.session != null) {
+        return {
+          'success': true,
+          'message': 'Sign in successful',
+          'response': response
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Invalid email or password',
+          'response': response
+        };
+      }
     } catch (e) {
-      throw Exception('Failed to sign in: $e');
+      String errorMessage = 'Failed to sign in.';
+      
+      // Parse common errors for better user messages
+      if (e.toString().contains('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (e.toString().contains('Email not confirmed')) {
+        errorMessage = 'Please confirm your email before signing in.';
+      }
+      
+      return {
+        'success': false,
+        'message': errorMessage,
+        'error': e.toString()
+      };
     }
   }
 
   // Sign up with email and password
-  static Future<AuthResponse> signUp({
+  static Future<Map<String, dynamic>> signUp({
     required String email, 
     required String password,
     required String fullName,
@@ -299,6 +350,27 @@ class UserService {
     String? phone,
   }) async {
     try {
+      // We'll use a different approach to check if email exists by looking at the profiles table
+      // instead of trying to sign in with a fake password
+      try {
+        final existingProfile = await _supabase
+            .from(_profilesTable)
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+            
+        if (existingProfile != null) {
+          return {
+            'success': false,
+            'message': 'This email is already registered. Please sign in instead.',
+            'response': null
+          };
+        }
+      } catch (e) {
+        // Ignore errors from this check, proceed with signup attempt
+        print('Error checking for existing user: $e');
+      }
+
       final authResponse = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -311,24 +383,55 @@ class UserService {
       
       // If sign up successful, create a profile for the user
       if (authResponse.user != null) {
-        await _supabase
-            .from(_profilesTable)
-            .insert({
-              'id': authResponse.user!.id,
-              'email': email,
-              'full_name': fullName,
-              'username': username,
-              'phone': phone,
-              'avatar_url': null,
-              'bio': null,
-              'created_at': DateTime.now().toIso8601String(),
-              'updated_at': DateTime.now().toIso8601String(),
-            });
+        try {
+          await _supabase
+              .from(_profilesTable)
+              .insert({
+                'id': authResponse.user!.id,
+                'email': email,
+                'full_name': fullName,
+                'username': username,
+                'phone': phone,
+                'avatar_url': null,
+                'bio': null,
+                'created_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTime.now().toIso8601String(),
+              });
+        } catch (profileError) {
+          // If profile creation fails, we still consider the signup successful
+          // but log the error for debugging
+          print('Failed to create profile: $profileError');
+        }
+        
+        return {
+          'success': true,
+          'message': 'Registration successful!',
+          'response': authResponse
+        };
       }
       
-      return authResponse;
+      return {
+        'success': false,
+        'message': authResponse.session == null ? 'Account created. Please check your email to confirm your registration.' : 'Something went wrong',
+        'response': authResponse
+      };
     } catch (e) {
-      throw Exception('Failed to sign up: $e');
+      String errorMessage = 'Failed to sign up.';
+      
+      // Parse common errors for better user messages
+      if (e.toString().contains('password')) {
+        errorMessage = 'Password must be at least 6 characters.';
+      } else if (e.toString().contains('email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
+      
+      return {
+        'success': false,
+        'message': errorMessage,
+        'error': e.toString()
+      };
     }
   }
 
