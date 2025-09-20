@@ -46,13 +46,75 @@ class UserService {
           .select()
           .order('full_name', ascending: true);
       
-      return (response as List).map((item) => UserProfile.fromJson(item)).toList();
+      List<UserProfile> users = (response as List).map((item) => UserProfile.fromJson(item)).toList();
+      
+      // If no users are found, create test profiles
+      if (users.isEmpty) {
+        await _createTestProfiles();
+        
+        // Fetch again after creating test profiles
+        final newResponse = await _supabase
+            .from(_profilesTable)
+            .select()
+            .order('full_name', ascending: true);
+            
+        users = (newResponse as List).map((item) => UserProfile.fromJson(item)).toList();
+      }
+      
+      return users;
     } catch (e) {
+      print('Error in getAllUsers: $e');
       throw Exception('Failed to get users: $e');
     }
   }
   
-  // Follow a user
+  // Create test profiles if none exist
+  static Future<void> _createTestProfiles() async {
+    try {
+      // Create a few test profiles
+      final testProfiles = [
+        {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'email': 'john@example.com',
+          'full_name': 'John Doe',
+          'username': 'johndoe',
+          'bio': 'Test user 1',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'avatar_url': null,
+        },
+        {
+          'id': '00000000-0000-0000-0000-000000000002',
+          'email': 'jane@example.com',
+          'full_name': 'Jane Smith',
+          'username': 'janesmith',
+          'bio': 'Test user 2',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'avatar_url': null,
+        },
+        {
+          'id': '00000000-0000-0000-0000-000000000003',
+          'email': 'ahmed@example.com',
+          'full_name': 'Ahmed Mohamed',
+          'username': 'ahmedm',
+          'bio': 'Test user 3',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'avatar_url': null,
+        },
+      ];
+      
+      // Insert test profiles
+      await _supabase.from(_profilesTable).upsert(testProfiles);
+      
+      print('Created test profiles');
+    } catch (e) {
+      print('Error creating test profiles: $e');
+    }
+  }
+  
+  // Follow a user (send a follow request)
   static Future<void> followUser(String followerId, String followedId) async {
     try {
       await _supabase
@@ -61,13 +123,14 @@ class UserService {
             'follower_id': followerId,
             'followed_id': followedId,
             'created_at': DateTime.now().toIso8601String(),
+            'status': 'pending', // Add status for follow requests
           });
     } catch (e) {
       throw Exception('Failed to follow user: $e');
     }
   }
   
-  // Unfollow a user
+  // Unfollow a user or cancel follow request
   static Future<void> unfollowUser(String followerId, String followedId) async {
     try {
       await _supabase
@@ -82,13 +145,92 @@ class UserService {
     }
   }
   
-  // Get users followed by the current user
+  // Accept a follow request
+  static Future<void> acceptFollowRequest(String followerId, String followedId) async {
+    try {
+      await _supabase
+          .from('user_follows')
+          .update({
+            'status': 'accepted',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .match({
+            'follower_id': followerId,
+            'followed_id': followedId,
+            'status': 'pending',
+          });
+    } catch (e) {
+      throw Exception('Failed to accept follow request: $e');
+    }
+  }
+  
+  // Reject a follow request
+  static Future<void> rejectFollowRequest(String followerId, String followedId) async {
+    try {
+      await _supabase
+          .from('user_follows')
+          .delete()
+          .match({
+            'follower_id': followerId,
+            'followed_id': followedId,
+            'status': 'pending',
+          });
+    } catch (e) {
+      throw Exception('Failed to reject follow request: $e');
+    }
+  }
+  
+  // Get pending follow requests for a user
+  static Future<List<UserProfile>> getPendingFollowRequests(String userId) async {
+    try {
+      final response = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('followed_id', userId)
+          .eq('status', 'pending');
+      
+      final followerIds = (response as List).map((item) => item['follower_id'].toString()).toList();
+      
+      if (followerIds.isEmpty) {
+        return [];
+      }
+      
+      final userResponse = await _supabase
+          .from(_profilesTable)
+          .select()
+          .inFilter('id', followerIds);
+      
+      return (userResponse as List).map((item) => UserProfile.fromJson(item)).toList();
+    } catch (e) {
+      throw Exception('Failed to get follow requests: $e');
+    }
+  }
+  
+  // Get follow request status between two users
+  static Future<String?> getFollowRequestStatus(String followerId, String followedId) async {
+    try {
+      final response = await _supabase
+          .from('user_follows')
+          .select('status')
+          .eq('follower_id', followerId)
+          .eq('followed_id', followedId)
+          .maybeSingle();
+      
+      return response != null ? response['status'] : null;
+    } catch (e) {
+      print('Error getting follow request status: $e');
+      return null;
+    }
+  }
+  
+  // Get users followed by the current user (only accepted follows)
   static Future<List<UserProfile>> getFollowedUsers(String userId) async {
     try {
       final response = await _supabase
           .from('user_follows')
           .select('followed_id')
-          .eq('follower_id', userId);
+          .eq('follower_id', userId)
+          .eq('status', 'accepted');
       
       final followedIds = (response as List).map((item) => item['followed_id'].toString()).toList();
       
@@ -104,6 +246,32 @@ class UserService {
       return (userResponse as List).map((item) => UserProfile.fromJson(item)).toList();
     } catch (e) {
       throw Exception('Failed to get followed users: $e');
+    }
+  }
+  
+  // Get users who follow the current user (only accepted follows)
+  static Future<List<UserProfile>> getFollowers(String userId) async {
+    try {
+      final response = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('followed_id', userId)
+          .eq('status', 'accepted');
+      
+      final followerIds = (response as List).map((item) => item['follower_id'].toString()).toList();
+      
+      if (followerIds.isEmpty) {
+        return [];
+      }
+      
+      final userResponse = await _supabase
+          .from(_profilesTable)
+          .select()
+          .inFilter('id', followerIds);
+      
+      return (userResponse as List).map((item) => UserProfile.fromJson(item)).toList();
+    } catch (e) {
+      throw Exception('Failed to get followers: $e');
     }
   }
 
@@ -295,7 +463,8 @@ class UserService {
       final followersResponse = await _supabase
           .from('user_follows')
           .select('follower_id')
-          .eq('followed_id', userId);
+          .eq('followed_id', userId)
+          .eq('status', 'accepted');
       
       final followerIds = (followersResponse as List).map((item) => item['follower_id'].toString()).toList();
       
@@ -307,7 +476,8 @@ class UserService {
       final followingResponse = await _supabase
           .from('user_follows')
           .select('followed_id')
-          .eq('follower_id', userId);
+          .eq('follower_id', userId)
+          .eq('status', 'accepted');
       
       final followingIds = (followingResponse as List).map((item) => item['followed_id'].toString()).toList();
       
@@ -343,14 +513,16 @@ class UserService {
           .from('user_follows')
           .select()
           .eq('follower_id', userId1)
-          .eq('followed_id', userId2);
+          .eq('followed_id', userId2)
+          .eq('status', 'accepted');
       
       // Check if user2 follows user1
       final follows2to1Response = await _supabase
           .from('user_follows')
           .select()
           .eq('follower_id', userId2)
-          .eq('followed_id', userId1);
+          .eq('followed_id', userId1)
+          .eq('status', 'accepted');
       
       return (follows1to2Response as List).isNotEmpty && 
              (follows2to1Response as List).isNotEmpty;

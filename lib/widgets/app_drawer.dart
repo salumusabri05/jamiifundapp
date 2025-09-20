@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:jamiifund/screens/users_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -109,6 +110,20 @@ class AppDrawer extends StatelessWidget {
             ],
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.people_outline),
+            title: Text(
+              'Community',
+              style: GoogleFonts.nunito(),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UsersScreen()),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.support_outlined),
             title: Text(

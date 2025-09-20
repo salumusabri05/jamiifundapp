@@ -76,10 +76,10 @@ class UserProfile {
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
     
-    if (id != null) data['id'] = id;
+    data['id'] = id; // id is required, not nullable
     if (updatedAt != null) data['updated_at'] = updatedAt!.toIso8601String();
     if (username != null) data['username'] = username;
-    if (fullName != null) data['full_name'] = fullName;
+    data['full_name'] = fullName; // fullName is required, not nullable
     if (avatarUrl != null) data['avatar_url'] = avatarUrl;
     if (website != null) data['website'] = website;
     if (phone != null) data['phone'] = phone;
@@ -95,7 +95,7 @@ class UserProfile {
     if (bio != null) data['bio'] = bio;
     if (email != null) data['email'] = email;
     if (location != null) data['location'] = location;
-    if (isVerified != null) data['is_verified'] = isVerified;
+    data['is_verified'] = isVerified ?? false;
     if (idUrl != null) data['id_url'] = idUrl;
     
     return data;

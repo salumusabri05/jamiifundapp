@@ -17,6 +17,8 @@ class UserDetailScreen extends StatefulWidget {
 
 class _UserDetailScreenState extends State<UserDetailScreen> {
   bool _isFollowing = false;
+  bool _isPendingRequest = false; // Added for follow requests
+  bool _hasPendingRequestFromUser = false; // To track if the user has sent a follow request to current user
   bool _isFollower = false;
   bool _isMutualFollow = false;
   bool _isLoading = false;
@@ -37,19 +39,24 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     });
 
     try {
-      // Check if current user follows the profile user
-      final followedUsers = await UserService.getFollowedUsers(currentUser.id);
-      final isFollowing = followedUsers.any((user) => user.id == widget.user.id);
+      // Get follow status between current user and profile user
+      final followStatus = await UserService.getFollowRequestStatus(currentUser.id, widget.user.id);
+      final isFollowing = followStatus == 'accepted';
+      final isPending = followStatus == 'pending';
       
       // Check if the profile user follows the current user (is a follower)
-      final isFollower = await UserService.areMutualFollowers(widget.user.id, currentUser.id);
+      final followerStatus = await UserService.getFollowRequestStatus(widget.user.id, currentUser.id);
+      final isFollower = followerStatus == 'accepted';
+      final hasPendingRequest = followerStatus == 'pending';
       
-      // Mutual follow means both users follow each other
+      // Mutual follow means both users follow each other with accepted status
       final isMutual = isFollowing && isFollower;
 
       if (mounted) {
         setState(() {
           _isFollowing = isFollowing;
+          _isPendingRequest = isPending;
+          _hasPendingRequestFromUser = hasPendingRequest;
           _isFollower = isFollower;
           _isMutualFollow = isMutual;
           _isLoading = false;
@@ -71,35 +78,99 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
 
     setState(() {
       _isLoading = true;
-      _isFollowing = !_isFollowing;
+      
+      // Toggle state based on current state
+      if (_isFollowing) {
+        _isFollowing = false;
+        _isPendingRequest = false;
+      } else if (_isPendingRequest) {
+        _isPendingRequest = false;
+      } else {
+        _isPendingRequest = true;
+      }
     });
 
     try {
-      if (_isFollowing) {
+      if (_isPendingRequest) {
         await UserService.followUser(currentUser.id, widget.user.id);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('You are now following ${widget.user.fullName}')),
+          SnackBar(content: Text('Follow request sent to ${widget.user.fullName}')),
         );
       } else {
         await UserService.unfollowUser(currentUser.id, widget.user.id);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('You unfollowed ${widget.user.fullName}')),
+          SnackBar(content: Text('Unfollowed ${widget.user.fullName}')),
         );
       }
+      
+      // Refresh status
+      _checkFollowStatus();
     } catch (e) {
       // Revert the UI change on error
       setState(() {
-        _isFollowing = !_isFollowing;
         _errorMessage = 'Failed to update follow status: ${e.toString()}';
+        _isLoading = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_errorMessage!)),
       );
-    } finally {
+    }
+  }
+  
+  Future<void> _acceptFollowRequest() async {
+    final currentUser = UserService.getCurrentUser();
+    if (currentUser == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await UserService.acceptFollowRequest(widget.user.id, currentUser.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Accepted follow request from ${widget.user.fullName}')),
+      );
+      
+      // Refresh status
+      _checkFollowStatus();
+    } catch (e) {
       setState(() {
+        _errorMessage = 'Failed to accept follow request: ${e.toString()}';
         _isLoading = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_errorMessage!)),
+      );
+    }
+  }
+  
+  Future<void> _rejectFollowRequest() async {
+    final currentUser = UserService.getCurrentUser();
+    if (currentUser == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await UserService.rejectFollowRequest(widget.user.id, currentUser.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rejected follow request from ${widget.user.fullName}')),
+      );
+      
+      // Refresh status
+      _checkFollowStatus();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to reject follow request: ${e.toString()}';
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_errorMessage!)),
+      );
     }
   }
 
@@ -216,27 +287,64 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   
                   const SizedBox(height: 8),
                   
-                  // Mutual follow status indicator
-                  if (_isFollower)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _isMutualFollow ? Colors.green[50] : Colors.blue[50],
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _isMutualFollow ? Colors.green : Colors.blue,
-                          width: 1,
+                  // Follow status indicator
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isFollower || _hasPendingRequestFromUser)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: _isFollower ? 
+                              (_isMutualFollow ? Colors.green[50] : Colors.blue[50]) : 
+                              Colors.orange[50],
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _isFollower ? 
+                                (_isMutualFollow ? Colors.green : Colors.blue) : 
+                                Colors.orange,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _isFollower ? 
+                              (_isMutualFollow ? 'Mutual Followers' : 'Follows You') : 
+                              'Requested to Follow You',
+                            style: GoogleFonts.nunito(
+                              fontSize: 12,
+                              color: _isFollower ? 
+                                (_isMutualFollow ? Colors.green[700] : Colors.blue[700]) : 
+                                Colors.orange[700],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        _isMutualFollow ? 'Mutual Followers' : 'Follows You',
-                        style: GoogleFonts.nunito(
-                          fontSize: 12,
-                          color: _isMutualFollow ? Colors.green[700] : Colors.blue[700],
-                          fontWeight: FontWeight.w600,
+                      
+                      if (_isPendingRequest)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.orange,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'Follow Requested',
+                            style: GoogleFonts.nunito(
+                              fontSize: 12,
+                              color: Colors.orange[700],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                    ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
+                    ],
+                  ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
                   
                   const SizedBox(height: 24),
                   
@@ -245,27 +353,72 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Follow/Unfollow button
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _toggleFollow,
-                        icon: Icon(
-                          _isFollowing ? Icons.person_remove : Icons.person_add,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          _isFollowing ? 'Unfollow' : 'Follow',
-                          style: GoogleFonts.nunito(
-                            fontWeight: FontWeight.bold,
+                      _hasPendingRequestFromUser 
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton(
+                              onPressed: _isLoading ? null : _acceptFollowRequest,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                              ),
+                              child: Text(
+                                'Accept',
+                                style: GoogleFonts.nunito(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _isLoading ? null : _rejectFollowRequest,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                              ),
+                              child: Text(
+                                'Reject',
+                                style: GoogleFonts.nunito(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _toggleFollow,
+                          icon: Icon(
+                            _isFollowing ? Icons.person_remove : 
+                            _isPendingRequest ? Icons.hourglass_empty : Icons.person_add,
                             color: Colors.white,
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isFollowing ? Colors.grey[700] : const Color(0xFF8A2BE2),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
+                          label: Text(
+                            _isFollowing ? 'Unfollow' : 
+                            _isPendingRequest ? 'Requested' : 'Follow',
+                            style: GoogleFonts.nunito(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isFollowing ? Colors.grey[700] : 
+                                             _isPendingRequest ? Colors.orange : 
+                                             const Color(0xFF8A2BE2),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
                           ),
                         ),
-                      ),
                       
                       const SizedBox(width: 16),
                       
@@ -284,7 +437,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _isFollowing ? const Color(0xFF4CAF50) : Colors.grey[400],
+                          backgroundColor: _isMutualFollow ? const Color(0xFF4CAF50) : Colors.grey[400],
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
@@ -294,11 +447,13 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
                   
-                  if (!_isFollowing)
+                  if (!_isMutualFollow)
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
-                        'You need to follow to message',
+                        _isFollowing && !_isFollower ? 'Waiting for user to follow you back' :
+                        !_isFollowing ? 'You need to follow and be followed to message' :
+                        'You need mutual follow to message',
                         style: GoogleFonts.nunito(
                           fontSize: 12,
                           color: Colors.grey[600],
