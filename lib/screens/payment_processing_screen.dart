@@ -65,6 +65,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'message': widget.message,
         'anonymous': widget.anonymous,
         'payment_method': widget.paymentMethod,
+        'phone_number': widget.phoneNumber, // Add phone number to store in donor_payment_number
       };
       
       // Create the donation in Supabase

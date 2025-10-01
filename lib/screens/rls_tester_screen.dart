@@ -16,10 +16,10 @@ class _RlsTesterState extends State<RlsTester> {
   bool _isLoading = false;
   final _bucketName = 'verification_documents';
   
-  Future<void> _createVerificationBucket() async {
+  Future<void> _testDirectUpload() async {
     setState(() {
       _isLoading = true;
-      _result = 'Creating verification bucket...';
+      _result = 'Testing direct upload to public bucket...';
     });
     
     try {
@@ -36,63 +36,50 @@ class _RlsTesterState extends State<RlsTester> {
         return;
       }
       
-      // Use the StorageBucketSetupHelper to create the bucket
-      final helper = StorageBucketSetupHelper();
-      final result = await helper.createBucket(_bucketName);
-      
-      if (result.success) {
-        // Test the new direct upload approach
-        try {
-          // First, set a status message
-          setState(() {
-            _result = 'SUCCESS: Bucket "$_bucketName" created successfully!\n\n'
-                     'Details: ${result.message}\n\n'
-                     'Testing direct upload to bucket root...';
-          });
-          
-          // Generate test data and filename
-          final testData = List<int>.filled(10, 0);
-          final testFileName = 'test_direct_${DateTime.now().millisecondsSinceEpoch}.dat';
-          
-          // Upload directly to bucket root
-          await SupabaseService.client.storage
-              .from(_bucketName)
-              .uploadBinary(
-                testFileName, 
-                Uint8List.fromList(testData),
-                fileOptions: const FileOptions(
-                  contentType: 'application/octet-stream',
-                  upsert: true
-                )
-              );
-          
-          // Update result with success
-          setState(() {
-            _result = 'SUCCESS: Bucket "$_bucketName" created and direct upload test PASSED!\n\n'
-                     'Successfully uploaded file directly to the bucket root.\n'
-                     'Filename: $testFileName\n\n'
-                     'The bucket is ready to use with the new simplified structure.';
-            _isLoading = false;
-          });
-          
-          // Clean up by removing the test file
-          await SupabaseService.client.storage
-              .from(_bucketName)
-              .remove([testFileName]);
-        } catch (e) {
-          // If direct upload fails, show error
-          setState(() {
-            _result = 'SUCCESS: Bucket "$_bucketName" created successfully!\n\n'
-                     'However, direct upload test FAILED: $e\n\n'
-                     'You may need to update the RLS policies to allow direct uploads.';
-            _isLoading = false;
-          });
-        }
-      } else {
+      try {
+        // Generate test data and filename
+        final testData = List<int>.filled(10, 0);
+        final userId = user.id;
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final testFileName = 'id_${userId}_${timestamp}.dat';
+        
+        // Upload directly to bucket root
+        await SupabaseService.client.storage
+            .from(_bucketName)
+            .uploadBinary(
+              testFileName, 
+              Uint8List.fromList(testData),
+              fileOptions: const FileOptions(
+                contentType: 'application/octet-stream',
+                upsert: true
+              )
+            );
+        
+        // Get the public URL for verification
+        final fileUrl = SupabaseService.client.storage
+            .from(_bucketName)
+            .getPublicUrl(testFileName);
+            
+        // Update result with success
         setState(() {
-          _result = 'ERROR: Failed to create bucket.\n\n'
-                   'Details: ${result.message}\n\n'
-                   'You may need to create the bucket manually in the Supabase dashboard.';
+          _result = 'SUCCESS: Direct upload to public bucket PASSED!\n\n'
+                   'Successfully uploaded file directly to the bucket root.\n'
+                   'Filename: $testFileName\n\n'
+                   'Public URL: $fileUrl\n\n'
+                   'The public bucket is working correctly with the simplified upload structure.';
+          _isLoading = false;
+        });
+        
+        // Clean up by removing the test file
+        await SupabaseService.client.storage
+            .from(_bucketName)
+            .remove([testFileName]);
+            
+      } catch (e) {
+        // If direct upload fails, show error
+        setState(() {
+          _result = 'ERROR: Direct upload test FAILED: $e\n\n'
+                   'Please verify your authentication and RLS policies for the bucket.';
           _isLoading = false;
         });
       }
@@ -103,7 +90,7 @@ class _RlsTesterState extends State<RlsTester> {
       });
     }
   }
-
+  
   Future<void> _testRlsPermissions() async {
     setState(() {
       _isLoading = true;
@@ -214,12 +201,12 @@ class _RlsTesterState extends State<RlsTester> {
             ),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: _isLoading ? null : _createVerificationBucket,
+              onPressed: _isLoading ? null : _testDirectUpload,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.amber[700],
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Create Verification Bucket'),
+              child: const Text('Test Direct Upload to Public Bucket'),
             ),
             const SizedBox(height: 16),
             

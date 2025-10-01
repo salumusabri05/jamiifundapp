@@ -27,9 +27,7 @@ class DonationService {
             'message': donation['message'],
             'anonymous': donation['anonymous'],
             'user_id': userId, // Add the user_id field
-            // Note: phone_number is not in the schema, but we'll store it for demonstration
-            // In a real app, you'd add this column to the table or use a separate table
-            // for payment processing details
+            'donor_payment_number': donation['phone_number'], // Store phone number in donor_payment_number column
             'payment_method': donation['payment_method'],
           })
           .select()

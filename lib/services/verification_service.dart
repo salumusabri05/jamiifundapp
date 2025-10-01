@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:jamiifund/models/verification_request.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 import 'package:jamiifund/services/profile_verification_sync.dart';

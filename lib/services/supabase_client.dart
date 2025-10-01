@@ -102,17 +102,8 @@ class SupabaseService {
       
       if (!bucketExists) {
         print('Bucket does not exist: $bucketName');
-        
-        // Try to create the bucket
-        try {
-          print('Attempting to create missing bucket: $bucketName');
-          await client.storage.createBucket(bucketName, const BucketOptions(public: false));
-          print('Successfully created bucket: $bucketName');
-          return true; // Successfully created the bucket
-        } catch (createError) {
-          print('Failed to create bucket: $createError');
-          return false; // Failed to create the bucket
-        }
+        print('The bucket should already be created in Supabase. Please check your configuration.');
+        return false; // The bucket doesn't exist and we don't try to create it
       }
       
       // Try to list objects to check permissions
@@ -446,6 +437,41 @@ class SupabaseService {
           SnackBar(content: Text('Error signing out: $e')),
         );
       }
+    }
+  }
+  
+  // Make a bucket public
+  static Future<bool> makeStorageBucketPublic(String bucketName) async {
+    try {
+      // First check if we're authenticated with admin privileges
+      if (!isAuthenticated()) {
+        print('Cannot modify bucket: User not authenticated');
+        return false;
+      }
+      
+      // Get list of buckets
+      final List<Bucket> buckets = await client.storage.listBuckets();
+      
+      // Check if our bucket exists
+      final bucketExists = buckets.any((bucket) => bucket.name == bucketName);
+      
+      if (!bucketExists) {
+        print('Bucket does not exist: $bucketName');
+        return false;
+      }
+      
+      // Update bucket to be public
+      try {
+        await client.storage.updateBucket(bucketName, const BucketOptions(public: true));
+        print('Successfully made bucket public: $bucketName');
+        return true;
+      } catch (updateError) {
+        print('Failed to make bucket public: $updateError');
+        return false;
+      }
+    } catch (e) {
+      print('Error making bucket public: $e');
+      return false;
     }
   }
 }

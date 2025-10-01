@@ -9,40 +9,27 @@ class BucketResult {
 }
 
 class StorageBucketSetupHelper {
-  // Method to create a bucket with proper error handling
+  // Method to check if a bucket exists (no longer creates buckets since they're already set up in Supabase)
   Future<BucketResult> createBucket(String bucketName) async {
     try {
-      // First check if bucket already exists to avoid errors
+      // Check if bucket exists 
       final buckets = await SupabaseService.client.storage.listBuckets();
       if (buckets.any((bucket) => bucket.name == bucketName)) {
         return BucketResult(
           success: true, 
-          message: 'Bucket "$bucketName" already exists, no need to create it.'
+          message: 'Bucket "$bucketName" already exists in Supabase and is configured as public.'
         );
       }
       
-      // Create the bucket if it doesn't exist
-      await SupabaseService.client.storage.createBucket(bucketName);
-      
-      print('Bucket created successfully');
-      
-      // Verify that the bucket now exists
-      final updatedBuckets = await SupabaseService.client.storage.listBuckets();
-      if (updatedBuckets.any((bucket) => bucket.name == bucketName)) {
-        return BucketResult(
-          success: true, 
-          message: 'Bucket "$bucketName" created successfully.'
-        );
-      } else {
-        return BucketResult(
-          success: false, 
-          message: 'Bucket creation API call succeeded but bucket not found in list. This may indicate an RLS permission issue.'
-        );
-      }
+      // If we get here, the bucket doesn't exist
+      return BucketResult(
+        success: false, 
+        message: 'Bucket "$bucketName" does not exist in Supabase. Please check your Supabase configuration.'
+      );
     } catch (e) {
       return BucketResult(
         success: false, 
-        message: 'Error creating bucket: $e'
+        message: 'Error checking bucket: $e'
       );
     }
   }

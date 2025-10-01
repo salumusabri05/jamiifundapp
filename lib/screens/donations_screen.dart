@@ -267,7 +267,7 @@ class _DonationsScreenState extends State<DonationsScreen> with TickerProviderSt
               ],
             ),
             trailing: Text(
-              '\$${donation['amount']}',
+              'TSH${donation['amount']}',
               style: GoogleFonts.nunito(
                 fontWeight: FontWeight.bold,
                 fontSize: 18,

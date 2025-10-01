@@ -24,15 +24,15 @@ BEGIN
         RAISE NOTICE 'Error dropping policies, might not exist yet';
     END;
 
-    -- Create policy for users to read any document in the verification_documents bucket
-    CREATE POLICY "Users can view verification documents"
+    -- Create policy for anyone to read any document in the verification_documents bucket (public)
+    CREATE POLICY "Anyone can view verification documents"
     ON storage.objects
     FOR SELECT
     USING (
         bucket_id = 'verification_documents'
     );
 
-    -- Create policy for users to insert documents directly into the verification_documents bucket
+    -- Create policy for authenticated users to insert documents directly into the verification_documents bucket
     CREATE POLICY "Users can upload verification documents"
     ON storage.objects
     FOR INSERT
@@ -65,8 +65,11 @@ BEGIN
         auth.jwt() ->> 'role' = 'admin'
     );
 
-    -- Grant access to authenticated users
+    -- Grant access to authenticated users for all operations
     GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
+    
+    -- Grant SELECT access to anonymous users (for public reading)
+    GRANT SELECT ON storage.objects TO anon;
 END;
 $$ LANGUAGE plpgsql;
 

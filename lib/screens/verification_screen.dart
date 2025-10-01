@@ -1,22 +1,13 @@
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/unified_verification.dart';
 import 'package:jamiifund/models/verification_request.dart';
 import 'package:jamiifund/models/verification_member.dart';
-import 'package:jamiifund/screens/rls_tester_screen.dart';
 import 'package:jamiifund/services/unified_verification_service.dart';
 import 'package:jamiifund/services/verification_service.dart';
 import 'package:jamiifund/services/supabase_client.dart';
-import 'package:jamiifund/utils/storage_bucket_setup_helper.dart';
-import 'package:jamiifund/utils/storage_permissions_checker.dart';
 import 'package:jamiifund/widgets/verification/input_field.dart';
-import 'package:jamiifund/widgets/verification/file_upload_widget.dart';
 import 'package:jamiifund/widgets/verification/status_badge.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:image_picker/image_picker.dart';
 
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
@@ -46,7 +37,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
   final _bankAccountNumberController = TextEditingController();
   String _selectedPaymentType = 'mobile_money'; // Default value
   
-  File? _idDocument;
   bool _isLoading = false;
   bool _isOrganization = false;
   VerificationRequest? _existingRequest;
@@ -177,12 +167,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
       return;
     }
 
-    if (_idDocument == null && _existingRequest == null && _existingUnifiedVerification == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload your ID document')),
-      );
-      return;
-    }
+    // No need to check for ID document as we're asking users to email it
+    // Just show a reminder
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Remember to email your required documents to jamiifund@gmail.com'),
+        duration: Duration(seconds: 5),
+      ),
+    );
 
     setState(() => _isLoading = true);
 
@@ -194,31 +186,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
       final useUnifiedVerification = _existingUnifiedVerification != null || 
                                      (_isOrganization && _members.isNotEmpty);
       
-      // Upload ID document if a new one was selected
-      if (_idDocument != null) {
-        try {
-          print("Document upload started. File path: ${_idDocument!.path}");
-          
-          if (useUnifiedVerification) {
-            idUrl = await _uploadIdDocumentForUnifiedVerification(_idDocument!.path, userId);
-          } else {
-            idUrl = await VerificationService.uploadIdDocument(_idDocument!.path, userId);
-          }
-          
-          print("Document upload completed successfully. URL: $idUrl");
-        } catch (uploadError) {
-          print("Document upload failed: $uploadError");
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to upload document: $uploadError')),
-          );
-          setState(() => _isLoading = false);
-          return;
-        }
-      } else {
-        // Use existing URL if available
-        idUrl = _existingUnifiedVerification?.idDocumentUrl ?? _existingRequest?.idUrl;
-        print("Using existing document URL: $idUrl");
-      }
+      // No document upload needed as users will email their documents
+      // Just use existing URL if available or set to null
+      idUrl = _existingUnifiedVerification?.idDocumentUrl ?? _existingRequest?.idUrl;
+      print("Using existing document URL if available: $idUrl");
       
       if (useUnifiedVerification) {
         // Create/update using UnifiedVerification model
@@ -250,10 +221,88 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification request submitted successfully! We will review your information.')),
+        // Show a success dialog with the processing message
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Request Submitted',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your request is being processed. You\'ll be notified shortly.',
+                    style: GoogleFonts.poppins(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Important:',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Don\'t forget to email your required documents to jamiifund@gmail.com within 48 hours to complete your verification.',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.timer_outlined, color: Colors.blue.shade700),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Verification typically takes 1-3 business days after receiving all documents.',
+                            style: GoogleFonts.poppins(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    Navigator.of(context).pop(); // Return to previous screen
+                  },
+                  child: Text(
+                    'OK',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
-        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
@@ -335,138 +384,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
   
   // Upload ID document for UnifiedVerification - Direct method that works for both web and mobile
-  Future<String> _uploadIdDocumentForUnifiedVerification(String filePath, String userId) async {
-    try {
-      // First, refresh auth state to ensure token is still valid
-      await SupabaseService.refreshAuthState();
-      
-      // Get the auth user ID directly from the auth system to ensure it matches exactly
-      final authUserId = SupabaseService.getAuthUserId();
-      
-      if (authUserId == null) {
-        throw Exception('User is not authenticated. Please sign in and try again.');
-      }
-      
-      if (authUserId != userId) {
-        print('Warning: Provided user ID ($userId) does not match authenticated user ID ($authUserId)');
-        // Use the authenticated user ID to ensure RLS policies work
-        userId = authUserId;
-      }
-      
-      // Validate that we have access to the storage bucket
-      final bucketAccess = await SupabaseService.validateStorageBucket('verification_documents');
-      if (!bucketAccess) {
-        throw Exception('Cannot access storage bucket. Please check your permissions or sign in again.');
-      }
-      
-      print('Starting document upload for authenticated user $userId');
-      print('Platform: ${kIsWeb ? "Web" : "Mobile"}');
-      
-      // Generate safe file name with user ID embedded in the filename
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'id_document_${userId}_$timestamp.jpg';
-      
-      // Upload directly to bucket root without user folder structure
-      final storagePath = fileName;
-      print('Storage path: $storagePath');
-      
-      // Handle web platform differently than mobile
-      if (kIsWeb) {
-        // For web, we need to handle the XFile differently
-        if (filePath.startsWith('blob:')) {
-          try {
-            // For web, work with the upload method that doesn't need File
-            // We'll need to get the bytes from the file input element
-            final xFile = XFile(filePath);
-            final bytes = await xFile.readAsBytes();
-            
-            if (bytes.isEmpty) {
-              throw Exception('File is empty');
-            }
-            
-            print('Web file read as bytes, size: ${bytes.length}');
-            
-            await SupabaseService.client
-                .storage
-                .from('verification_documents')
-                .uploadBinary(
-                  storagePath, 
-                  bytes,
-                  fileOptions: FileOptions(
-                    contentType: 'image/jpeg',
-                    upsert: true
-                  )
-                );
-            print('Web upload successful');
-          } catch (webError) {
-            print('Web upload error: $webError');
-            throw Exception('Web upload failed: $webError');
-          }
-        } else {
-          throw Exception('Invalid web file path format');
-        }
-      } else {
-        // Mobile file handling
-        final file = File(filePath);
-        
-        // Debug logging to check file issues
-        print('File path: $filePath');
-        print('File exists: ${file.existsSync()}');
-        
-        if (!file.existsSync()) {
-          throw Exception('File does not exist: $filePath');
-        }
-        
-        // Read file as bytes
-        final bytes = await file.readAsBytes();
-        print('Mobile file read as bytes, size: ${bytes.length}');
-        
-        if (bytes.isEmpty) {
-          throw Exception('File is empty');
-        }
-        
-        await SupabaseService.client
-            .storage
-            .from('verification_documents')
-            .uploadBinary(
-              storagePath, 
-              bytes,
-              fileOptions: FileOptions(
-                contentType: 'image/jpeg',
-                upsert: true
-              )
-            );
-        print('Mobile upload successful');
-      }
-      
-      // Get public URL (same for web and mobile)
-      try {
-        final publicUrl = SupabaseService.client
-            .storage
-            .from('verification_documents')
-            .getPublicUrl(storagePath);
-            
-        print('Public URL generated: $publicUrl');
-        return publicUrl;
-      } catch (urlError) {
-        print('Error generating public URL: $urlError');
-        throw Exception('Failed to generate public URL: $urlError');
-      }
-    } catch (e) {
-      print('Exception in _uploadIdDocumentForUnifiedVerification: $e');
-      
-      // Provide more specific error messages for common issues
-      if (e.toString().contains('403') || e.toString().contains('Forbidden') || e.toString().contains('Unauthorized')) {
-        throw Exception('Access denied. Authentication issue or insufficient permissions. Please sign out and sign back in.');
-      } else if (e.toString().contains('timeout') || e.toString().contains('TimeoutException')) {
-        throw Exception('Upload timed out. Please check your internet connection and try again.');
-      } else if (e.toString().contains('storage_not_found') || e.toString().contains('bucket')) {
-        throw Exception('Storage bucket issue. Please contact support.');
-      } else {
-        throw Exception('Failed to upload ID document: $e');
-      }
-    }
-  }
+  // Document upload method removed since users will email their documents
+  // instead of uploading them directly
   
   // Build the members list UI
   List<Widget> _buildMembersList() {
@@ -673,106 +592,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
   
   // Show diagnostics options for troubleshooting upload issues
+  // Empty placeholder method to avoid breaking references
   void _showDiagnosticsOptions() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Diagnostics & Troubleshooting',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'If you\'re having issues with document uploads, try these options:',
-              style: GoogleFonts.poppins(),
-            ),
-            const SizedBox(height: 16),
-            
-            // Option 1: Check permissions
-            ListTile(
-              leading: const Icon(Icons.security, color: Color(0xFF8A2BE2)),
-              title: Text('Check Storage Permissions', style: GoogleFonts.poppins()),
-              subtitle: Text('Test if you have proper permissions to upload files', style: GoogleFonts.poppins(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                StoragePermissionsChecker.checkAndShowResults(context);
-              },
-            ),
-            
-            // Option 2: Sign out and back in
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.orange),
-              title: Text('Sign Out', style: GoogleFonts.poppins()),
-              subtitle: Text('Sign out completely and then sign back in', style: GoogleFonts.poppins(fontSize: 12)),
-              onTap: () async {
-                Navigator.pop(context);
-                await SupabaseService.signOut(context);
-                if (context.mounted) {
-                  Navigator.of(context).pop(); // Go back to previous screen after signout
-                }
-              },
-            ),
-            
-            // Option 3: Clear auth state
-            ListTile(
-              leading: const Icon(Icons.refresh, color: Colors.blue),
-              title: Text('Refresh Auth State', style: GoogleFonts.poppins()),
-              subtitle: Text('Refresh your authentication session', style: GoogleFonts.poppins(fontSize: 12)),
-              onTap: () async {
-                Navigator.pop(context);
-                try {
-                  await SupabaseService.refreshAuthState();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Authentication refreshed')),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                }
-              },
-            ),
-            
-            // Option 4: Create Missing Bucket
-            ListTile(
-              leading: const Icon(Icons.create_new_folder, color: Colors.orange),
-              title: Text('Create Missing Bucket', style: GoogleFonts.poppins()),
-              subtitle: Text('Create the verification_documents bucket if missing', style: GoogleFonts.poppins(fontSize: 12)),
-              onTap: () async {
-                Navigator.pop(context);
-                await StorageBucketSetupHelper.showMissingBucketDialog(context, 'verification_documents');
-              },
-            ),
-            
-            // Option 5: Advanced RLS testing
-            ListTile(
-              leading: const Icon(Icons.developer_mode, color: Colors.deepPurple),
-              title: Text('Advanced RLS Testing', style: GoogleFonts.poppins()),
-              subtitle: Text('Run detailed tests on storage permissions', style: GoogleFonts.poppins(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RlsTester()),
-                );
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
+    // Show a simple message that this feature is no longer available
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('This feature has been removed')),
     );
   }
 
@@ -1120,41 +944,214 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         
                         // ID Document Upload
                         Text(
-                          'ID Document',
+                          'Required Documentation',
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          'Upload a clear image of your ID card or passport',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade300)
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.email_outlined, color: Colors.blue.shade700),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Email Required Documents',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              
+                              // Email address
+                              Text(
+                                'Please email all required documents to:',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SelectableText(
+                                'jamiifund@gmail.com',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.blue.shade800,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              // For Individuals section
+                              if (!_isOrganization) ...[
+                                Text(
+                                  '1. Personal Users (Individuals)',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blue.shade900,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Required Documents:',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '• Government-issued ID (choose one):',
+                                  style: GoogleFonts.poppins(fontSize: 14),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Text(
+                                    '- National ID card\n- Passport\n- Driver\'s license',
+                                    style: GoogleFonts.poppins(fontSize: 13),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Optional Documents:',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Text(
+                                    '- Proof of address (utility bill, bank statement)\n- Tax Identification Number (TIN)',
+                                    style: GoogleFonts.poppins(fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                              
+                              // For Organizations section
+                              if (_isOrganization) ...[
+                                Text(
+                                  '2. Organizational Users (Companies, NGOs, Groups)',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blue.shade900,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Required Documents:',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8.0),
+                                  child: Text(
+                                    '• Certificate of registration or incorporation\n'
+                                    '• Tax Identification Number (TIN)\n'
+                                    '• Organizational by-laws or constitution\n'
+                                    '• Proof of authorized representative:\n'
+                                    '  - ID of director/CEO/authorized person\n'
+                                    '  - Board resolution or authorization letter\n'
+                                    '• Bank account details of the organization',
+                                    style: GoogleFonts.poppins(fontSize: 13),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Optional Documents:',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8.0),
+                                  child: Text(
+                                    '• Organizational logo (for profile display)\n'
+                                    '• Annual reports or financial statements',
+                                    style: GoogleFonts.poppins(fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                              
+                              const SizedBox(height: 16),
+                              // Email information section
+                              Text(
+                                'In your email, please include:',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8.0),
+                                child: Text(
+                                  '• Your full name as registered in this app\n'
+                                  '• Phone number used during registration\n'
+                                  '• Type of verification request (Personal/Organization)\n'
+                                  '• Subject line: "JamiiiFund Verification - [Your Name]"',
+                                  style: GoogleFonts.poppins(fontSize: 13),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.amber.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'After submitting this form, please email your documents within 48 hours to complete your verification request.',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          color: Colors.amber.shade900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 16),
-                        FileUploadWidget(
-                          label: 'ID Document',
-                          file: _idDocument,
-                          existingUrl: _existingUnifiedVerification?.idDocumentUrl ?? _existingRequest?.idUrl,
-                          onFilePicked: (File file) {
-                            if (file.path.isEmpty) {
-                              // Clear file
-                              setState(() {
-                                _idDocument = null;
-                              });
-                            } else {
-                              // Set file and log the file information for debugging
-                              setState(() {
-                                _idDocument = file;
-                                print('File picked: ${file.path}');
-                                print('File exists: ${file.existsSync()}');
-                                print('File size: ${file.lengthSync()} bytes');
-                              });
-                            }
-                          },
+                        // Hidden placeholder to maintain form structure
+                        SizedBox(
+                          height: 0,
+                          child: Opacity(
+                            opacity: 0,
+                            child: StatefulBuilder(
+                              builder: (context, setState) {
+                                return Container(); // Empty placeholder
+                              },
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 24),
                         

@@ -5,7 +5,6 @@ import 'package:jamiifund/models/verification_member.dart';
 import 'package:jamiifund/services/supabase_client.dart';
 import 'package:jamiifund/services/profile_verification_sync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:path/path.dart' as path;
 
 class UnifiedVerificationService {
   static const String _tableName = 'verifications';
@@ -186,13 +185,13 @@ class UnifiedVerificationService {
         userId = authUserId;
       }
       
-      print('Starting upload for authenticated user $userId in folder $folderName');
+      print('Starting upload to public bucket for authenticated user $userId');
       
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       // Include user ID in the filename but not in the path - this keeps files unique
       // while allowing direct upload to bucket root
       final fileName = 'id_${userId}_${timestamp}.jpg'; // Always use jpg extension to avoid path issues
-      final filePath = fileName; // Direct in bucket root
+      final filePath = fileName; // Direct in bucket root (no folder structure)
       
       print('Generated file path: $filePath');
       
@@ -211,11 +210,13 @@ class UnifiedVerificationService {
           
           print('Web file read as bytes, size: ${bytes.length}');
           
-          // Check if bucket exists before uploading
+          // We assume the bucket already exists and is public in Supabase
           const bucketName = 'verification_documents';
+          
+          // We'll still validate it exists but won't try to create it
           final bucketExists = await SupabaseService.validateStorageBucket(bucketName);
           if (!bucketExists) {
-            throw Exception('Storage bucket $bucketName does not exist. Please create it first.');
+            throw Exception('Storage bucket $bucketName does not exist in Supabase. Please check your Supabase configuration.');
           }
           
           // Upload binary data for web
@@ -247,11 +248,13 @@ class UnifiedVerificationService {
         // Read file as bytes for consistent handling
         final bytes = await file.readAsBytes();
         
-        // Check if bucket exists before uploading
+        // We assume the bucket already exists and is public in Supabase
         const bucketName = 'verification_documents';
+        
+        // We'll still validate it exists but won't try to create it
         final bucketExists = await SupabaseService.validateStorageBucket(bucketName);
         if (!bucketExists) {
-          throw Exception('Storage bucket $bucketName does not exist. Please create it first.');
+          throw Exception('Storage bucket $bucketName does not exist in Supabase. Please check your Supabase configuration.');
         }
         
         await _client
