@@ -165,29 +165,97 @@ class VerificationService {
     }
   }
 
-  // Upload ID document
+  // Upload ID document - Enhanced version that handles file issues better
   static Future<String> uploadIdDocument(String filePath, String userId) async {
     try {
-      final fileExt = filePath.split('.').last;
-      final fileName = 'id_document_$userId.$fileExt';
+      // Get the auth user ID directly from the auth system to ensure it matches exactly
+      final authUserId = SupabaseService.getAuthUserId();
+      
+      if (authUserId == null) {
+        throw Exception('User is not authenticated. Please sign in again.');
+      }
+      
+      if (authUserId != userId) {
+        print('Warning: Provided user ID ($userId) does not match authenticated user ID ($authUserId)');
+        // Use the authenticated user ID to ensure RLS policies work
+        userId = authUserId;
+      }
+      
+      print('Starting document upload service for authenticated user $userId');
       
       // Create a Dart File object from the file path
       final file = File(filePath);
+      if (!file.existsSync()) {
+        throw Exception('File does not exist: $filePath');
+      }
       
-      await _client
-          .storage
-          .from('verification_documents')
-          .upload(fileName, file);
+      // Generate a safe filename with timestamp to avoid conflicts
+      // Include user ID in the filename itself for uniqueness
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'id_document_${userId}_$timestamp.jpg'; // Force jpg extension
       
-      // Get the public URL of the uploaded file
-      final fileUrl = _client
-          .storage
-          .from('verification_documents')
-          .getPublicUrl(fileName);
-          
-      return fileUrl;
+      // Upload directly to bucket root without user folder structure
+      final storagePath = fileName;
+      
+      print('File exists: ${file.existsSync()}, File path: $filePath');
+      print('Storage path: $storagePath');
+      
+      // Read file as bytes to avoid path issues
+      final bytes = await file.readAsBytes();
+      print('File size: ${bytes.length} bytes');
+      
+      if (bytes.isEmpty) {
+        throw Exception('File is empty');
+      }
+      
+      try {
+        // Upload the binary data directly
+        await _client
+            .storage
+            .from('verification_documents')
+            .uploadBinary(
+              storagePath, 
+              bytes,
+              fileOptions: FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true
+              )
+            );
+            
+        print('Upload successful to Supabase storage');
+      } catch (uploadError) {
+        print('Upload error: $uploadError');
+        throw Exception('Upload to storage failed: $uploadError');
+      }
+      
+      try {
+        // Get the public URL of the uploaded file
+        final fileUrl = _client
+            .storage
+            .from('verification_documents')
+            .getPublicUrl(storagePath);
+            
+        print('Public URL generated: $fileUrl');
+        return fileUrl;
+      } catch (urlError) {
+        print('Error generating URL: $urlError');
+        throw Exception('Failed to generate public URL: $urlError');
+      }
     } catch (e) {
-      rethrow;
+      print('Error in uploadIdDocument: $e');
+      
+      // Provide more specific error messages for common issues
+      if (e.toString().contains('403') || e.toString().contains('Forbidden') || e.toString().contains('Unauthorized')) {
+        throw Exception('Access denied. Authentication issue or insufficient permissions. Please sign out and sign back in.');
+      } else if (e.toString().contains('timeout') || e.toString().contains('TimeoutException')) {
+        throw Exception('Upload timed out. Please check your internet connection and try again.');
+      } else if (e.toString().contains('storage_not_found') || e.toString().contains('bucket')) {
+        throw Exception('Storage bucket issue. Please contact support.');
+      } else if (e.toString().contains('User is not authenticated')) {
+        throw Exception('Authentication required. Please sign in again.');
+      } else {
+        throw Exception('Failed to upload ID document: $e');
+      }
     }
   }
 

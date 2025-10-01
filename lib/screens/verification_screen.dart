@@ -1,16 +1,22 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/unified_verification.dart';
 import 'package:jamiifund/models/verification_request.dart';
 import 'package:jamiifund/models/verification_member.dart';
+import 'package:jamiifund/screens/rls_tester_screen.dart';
 import 'package:jamiifund/services/unified_verification_service.dart';
 import 'package:jamiifund/services/verification_service.dart';
 import 'package:jamiifund/services/supabase_client.dart';
+import 'package:jamiifund/utils/storage_bucket_setup_helper.dart';
+import 'package:jamiifund/utils/storage_permissions_checker.dart';
 import 'package:jamiifund/widgets/verification/input_field.dart';
 import 'package:jamiifund/widgets/verification/file_upload_widget.dart';
 import 'package:jamiifund/widgets/verification/status_badge.dart';
-import 'package:path/path.dart' as path;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
@@ -51,7 +57,37 @@ class _VerificationScreenState extends State<VerificationScreen> {
   void initState() {
     super.initState();
     _checkExistingRequest();
+    _checkRequiredBuckets();
   }
+  
+  // Check and create required storage buckets
+  Future<void> _checkRequiredBuckets() async {
+    try {
+      final results = await SupabaseService.ensureRequiredBuckets();
+      // Check if verification_documents bucket exists
+      final verificationBucketExists = results['verification_documents'] ?? false;
+      
+      if (!verificationBucketExists && mounted) {
+        // Show a prompt to create the bucket if it doesn't exist
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Verification document storage not available. Some features may not work.'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Fix',
+              onPressed: _showDiagnosticsOptions,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error checking required buckets: $e');
+    }
+  }
+  
+  // Show diagnostics options dialog - removed duplicate
+        // Removed duplicate method
 
   // Check if user already has a verification request
   Future<void> _checkExistingRequest() async {
@@ -67,7 +103,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
         setState(() {
           _existingUnifiedVerification = unifiedVerification;
           _isOrganization = unifiedVerification.isOrganization;
-          _members = unifiedVerification.members;
           
           // Pre-fill form data from UnifiedVerification
           _fullNameController.text = unifiedVerification.fullName ?? '';
@@ -161,14 +196,28 @@ class _VerificationScreenState extends State<VerificationScreen> {
       
       // Upload ID document if a new one was selected
       if (_idDocument != null) {
-        if (useUnifiedVerification) {
-          idUrl = await _uploadIdDocumentForUnifiedVerification(_idDocument!.path, userId);
-        } else {
-          idUrl = await VerificationService.uploadIdDocument(_idDocument!.path, userId);
+        try {
+          print("Document upload started. File path: ${_idDocument!.path}");
+          
+          if (useUnifiedVerification) {
+            idUrl = await _uploadIdDocumentForUnifiedVerification(_idDocument!.path, userId);
+          } else {
+            idUrl = await VerificationService.uploadIdDocument(_idDocument!.path, userId);
+          }
+          
+          print("Document upload completed successfully. URL: $idUrl");
+        } catch (uploadError) {
+          print("Document upload failed: $uploadError");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to upload document: $uploadError')),
+          );
+          setState(() => _isLoading = false);
+          return;
         }
       } else {
         // Use existing URL if available
         idUrl = _existingUnifiedVerification?.idDocumentUrl ?? _existingRequest?.idUrl;
+        print("Using existing document URL: $idUrl");
       }
       
       if (useUnifiedVerification) {
@@ -208,8 +257,46 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting request: ${e.toString()}')),
+        // Show a more detailed error with action options
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Error Submitting Request', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('An error occurred:', style: GoogleFonts.poppins()),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    e.toString(),
+                    style: GoogleFonts.poppins(color: Colors.red),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('What would you like to do?', style: GoogleFonts.poppins()),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showDiagnosticsOptions();
+                },
+                child: Text('Troubleshoot', style: GoogleFonts.poppins()),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close', style: GoogleFonts.poppins()),
+              ),
+            ],
+          ),
         );
       }
     } finally {
@@ -247,24 +334,137 @@ class _VerificationScreenState extends State<VerificationScreen> {
     await UnifiedVerificationService.saveVerification(verification);
   }
   
-  // Upload ID document for UnifiedVerification
+  // Upload ID document for UnifiedVerification - Direct method that works for both web and mobile
   Future<String> _uploadIdDocumentForUnifiedVerification(String filePath, String userId) async {
     try {
-      final file = File(filePath);
-      final fileExtension = path.extension(filePath);
-      final fileName = 'id_document_$userId$fileExtension';
+      // First, refresh auth state to ensure token is still valid
+      await SupabaseService.refreshAuthState();
       
-      await SupabaseService.client
-          .storage
-          .from('verification_documents')
-          .upload(fileName, file);
+      // Get the auth user ID directly from the auth system to ensure it matches exactly
+      final authUserId = SupabaseService.getAuthUserId();
       
-      return SupabaseService.client
-          .storage
-          .from('verification_documents')
-          .getPublicUrl(fileName);
+      if (authUserId == null) {
+        throw Exception('User is not authenticated. Please sign in and try again.');
+      }
+      
+      if (authUserId != userId) {
+        print('Warning: Provided user ID ($userId) does not match authenticated user ID ($authUserId)');
+        // Use the authenticated user ID to ensure RLS policies work
+        userId = authUserId;
+      }
+      
+      // Validate that we have access to the storage bucket
+      final bucketAccess = await SupabaseService.validateStorageBucket('verification_documents');
+      if (!bucketAccess) {
+        throw Exception('Cannot access storage bucket. Please check your permissions or sign in again.');
+      }
+      
+      print('Starting document upload for authenticated user $userId');
+      print('Platform: ${kIsWeb ? "Web" : "Mobile"}');
+      
+      // Generate safe file name with user ID embedded in the filename
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'id_document_${userId}_$timestamp.jpg';
+      
+      // Upload directly to bucket root without user folder structure
+      final storagePath = fileName;
+      print('Storage path: $storagePath');
+      
+      // Handle web platform differently than mobile
+      if (kIsWeb) {
+        // For web, we need to handle the XFile differently
+        if (filePath.startsWith('blob:')) {
+          try {
+            // For web, work with the upload method that doesn't need File
+            // We'll need to get the bytes from the file input element
+            final xFile = XFile(filePath);
+            final bytes = await xFile.readAsBytes();
+            
+            if (bytes.isEmpty) {
+              throw Exception('File is empty');
+            }
+            
+            print('Web file read as bytes, size: ${bytes.length}');
+            
+            await SupabaseService.client
+                .storage
+                .from('verification_documents')
+                .uploadBinary(
+                  storagePath, 
+                  bytes,
+                  fileOptions: FileOptions(
+                    contentType: 'image/jpeg',
+                    upsert: true
+                  )
+                );
+            print('Web upload successful');
+          } catch (webError) {
+            print('Web upload error: $webError');
+            throw Exception('Web upload failed: $webError');
+          }
+        } else {
+          throw Exception('Invalid web file path format');
+        }
+      } else {
+        // Mobile file handling
+        final file = File(filePath);
+        
+        // Debug logging to check file issues
+        print('File path: $filePath');
+        print('File exists: ${file.existsSync()}');
+        
+        if (!file.existsSync()) {
+          throw Exception('File does not exist: $filePath');
+        }
+        
+        // Read file as bytes
+        final bytes = await file.readAsBytes();
+        print('Mobile file read as bytes, size: ${bytes.length}');
+        
+        if (bytes.isEmpty) {
+          throw Exception('File is empty');
+        }
+        
+        await SupabaseService.client
+            .storage
+            .from('verification_documents')
+            .uploadBinary(
+              storagePath, 
+              bytes,
+              fileOptions: FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true
+              )
+            );
+        print('Mobile upload successful');
+      }
+      
+      // Get public URL (same for web and mobile)
+      try {
+        final publicUrl = SupabaseService.client
+            .storage
+            .from('verification_documents')
+            .getPublicUrl(storagePath);
+            
+        print('Public URL generated: $publicUrl');
+        return publicUrl;
+      } catch (urlError) {
+        print('Error generating public URL: $urlError');
+        throw Exception('Failed to generate public URL: $urlError');
+      }
     } catch (e) {
-      throw Exception('Failed to upload ID document: $e');
+      print('Exception in _uploadIdDocumentForUnifiedVerification: $e');
+      
+      // Provide more specific error messages for common issues
+      if (e.toString().contains('403') || e.toString().contains('Forbidden') || e.toString().contains('Unauthorized')) {
+        throw Exception('Access denied. Authentication issue or insufficient permissions. Please sign out and sign back in.');
+      } else if (e.toString().contains('timeout') || e.toString().contains('TimeoutException')) {
+        throw Exception('Upload timed out. Please check your internet connection and try again.');
+      } else if (e.toString().contains('storage_not_found') || e.toString().contains('bucket')) {
+        throw Exception('Storage bucket issue. Please contact support.');
+      } else {
+        throw Exception('Failed to upload ID document: $e');
+      }
     }
   }
   
@@ -471,6 +671,110 @@ class _VerificationScreenState extends State<VerificationScreen> {
     _bankAccountNumberController.dispose();
     super.dispose();
   }
+  
+  // Show diagnostics options for troubleshooting upload issues
+  void _showDiagnosticsOptions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Diagnostics & Troubleshooting',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'If you\'re having issues with document uploads, try these options:',
+              style: GoogleFonts.poppins(),
+            ),
+            const SizedBox(height: 16),
+            
+            // Option 1: Check permissions
+            ListTile(
+              leading: const Icon(Icons.security, color: Color(0xFF8A2BE2)),
+              title: Text('Check Storage Permissions', style: GoogleFonts.poppins()),
+              subtitle: Text('Test if you have proper permissions to upload files', style: GoogleFonts.poppins(fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                StoragePermissionsChecker.checkAndShowResults(context);
+              },
+            ),
+            
+            // Option 2: Sign out and back in
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.orange),
+              title: Text('Sign Out', style: GoogleFonts.poppins()),
+              subtitle: Text('Sign out completely and then sign back in', style: GoogleFonts.poppins(fontSize: 12)),
+              onTap: () async {
+                Navigator.pop(context);
+                await SupabaseService.signOut(context);
+                if (context.mounted) {
+                  Navigator.of(context).pop(); // Go back to previous screen after signout
+                }
+              },
+            ),
+            
+            // Option 3: Clear auth state
+            ListTile(
+              leading: const Icon(Icons.refresh, color: Colors.blue),
+              title: Text('Refresh Auth State', style: GoogleFonts.poppins()),
+              subtitle: Text('Refresh your authentication session', style: GoogleFonts.poppins(fontSize: 12)),
+              onTap: () async {
+                Navigator.pop(context);
+                try {
+                  await SupabaseService.refreshAuthState();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Authentication refreshed')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+            
+            // Option 4: Create Missing Bucket
+            ListTile(
+              leading: const Icon(Icons.create_new_folder, color: Colors.orange),
+              title: Text('Create Missing Bucket', style: GoogleFonts.poppins()),
+              subtitle: Text('Create the verification_documents bucket if missing', style: GoogleFonts.poppins(fontSize: 12)),
+              onTap: () async {
+                Navigator.pop(context);
+                await StorageBucketSetupHelper.showMissingBucketDialog(context, 'verification_documents');
+              },
+            ),
+            
+            // Option 5: Advanced RLS testing
+            ListTile(
+              leading: const Icon(Icons.developer_mode, color: Colors.deepPurple),
+              title: Text('Advanced RLS Testing', style: GoogleFonts.poppins()),
+              subtitle: Text('Run detailed tests on storage permissions', style: GoogleFonts.poppins(fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RlsTester()),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -482,6 +786,21 @@ class _VerificationScreenState extends State<VerificationScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          // Add diagnostic button
+          IconButton(
+            icon: const Icon(Icons.build),
+            tooltip: 'Diagnostics',
+            onPressed: _showDiagnosticsOptions,
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Diagnose Upload Issues',
+            onPressed: () {
+              _showDiagnosticsOptions();
+            },
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -827,9 +1146,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                 _idDocument = null;
                               });
                             } else {
-                              // Set file
+                              // Set file and log the file information for debugging
                               setState(() {
                                 _idDocument = file;
+                                print('File picked: ${file.path}');
+                                print('File exists: ${file.existsSync()}');
+                                print('File size: ${file.lengthSync()} bytes');
                               });
                             }
                           },

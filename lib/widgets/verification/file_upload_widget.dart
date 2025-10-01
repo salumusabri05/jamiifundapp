@@ -201,11 +201,27 @@ class FileUploadWidget extends StatelessWidget {
       );
       
       if (image != null) {
-        return File(image.path);
+        if (kIsWeb) {
+          // For web, we can't use File directly, so create a web-compatible File
+          // We'll use XFile's path directly and handle it specially during upload
+          return File(image.path);
+        } else {
+          // Create a temporary file in the app's temporary directory for mobile platforms
+          final tempDir = Directory.systemTemp;
+          final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final tempFile = File('${tempDir.path}/$fileName');
+          
+          // Read the image bytes and write to the temporary file
+          final imageBytes = await image.readAsBytes();
+          await tempFile.writeAsBytes(imageBytes);
+          
+          return tempFile;
+        }
       }
       
       return null;
     } catch (e) {
+      print('Error picking image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error picking image: $e')),
       );

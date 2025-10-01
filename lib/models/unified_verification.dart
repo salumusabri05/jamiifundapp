@@ -1,11 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:jamiifund/models/verification_member.dart';
 
 class UnifiedVerification {
   final String? id;
   final String? userId;
-  final String status; // 'pending', 'submitted', 'completed'
+  final String status; // 'pending', 'approved', 'rejected'
   
-  // Personal KYC data (Step 1)
+  // Personal KYC data
   final String? fullName;
   final String? dateOfBirth;
   final String? nationalId;
@@ -17,7 +18,7 @@ class UnifiedVerification {
   final String? bankAccount;
   final String? bankName;
   
-  // Organization data (Step 2)
+  // Organization data
   final bool isOrganization;
   final String? organizationName;
   final String? organizationRegNumber;
@@ -27,7 +28,7 @@ class UnifiedVerification {
   final String? organizationLogoUrl;
   final String? organizationDocumentUrl;
   
-  // Organization members (Step 3)
+  // Organization members
   final List<VerificationMember> members;
   
   // Timestamps
@@ -84,20 +85,15 @@ class UnifiedVerification {
       'organization_bank_name': organizationBankName,
       'organization_logo_url': organizationLogoUrl,
       'organization_document_url': organizationDocumentUrl,
-      'members': members.map((member) => member.toMap()).toList(),
+      // Don't include members in the main table data
       'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt?.toIso8601String(),
     };
   }
 
   static UnifiedVerification fromMap(Map<String, dynamic> map) {
-    List<VerificationMember> parsedMembers = [];
-    
-    if (map['members'] != null) {
-      parsedMembers = (map['members'] as List)
-        .map((item) => VerificationMember.fromMap(item as Map<String, dynamic>))
-        .toList();
-    }
+    // Members are handled separately and should not be part of the map
+    List<VerificationMember> members = [];
     
     return UnifiedVerification(
       id: map['id'],
@@ -121,7 +117,7 @@ class UnifiedVerification {
       organizationBankName: map['organization_bank_name'],
       organizationLogoUrl: map['organization_logo_url'],
       organizationDocumentUrl: map['organization_document_url'],
-      members: parsedMembers,
+      members: members,
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at']) : null,
       updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at']) : null,
     );
@@ -180,4 +176,21 @@ class UnifiedVerification {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+  
+  @override
+  String toString() {
+    return 'UnifiedVerification{id: $id, userId: $userId, status: $status, fullName: $fullName, isOrganization: $isOrganization}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is UnifiedVerification &&
+      other.id == id &&
+      other.userId == userId &&
+      other.status == status;
+  }
+
+  @override
+  int get hashCode => id.hashCode ^ userId.hashCode ^ status.hashCode;
 }

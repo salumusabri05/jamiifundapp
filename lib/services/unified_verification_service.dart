@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:jamiifund/models/unified_verification.dart';
 import 'package:jamiifund/models/verification_member.dart';
 import 'package:jamiifund/services/supabase_client.dart';
@@ -29,7 +30,7 @@ class UnifiedVerificationService {
       verificationData['user_id'] = userId;
       
       // Remove members from main verification data since they will be saved separately
-      final members = List<VerificationMember>.from(verification.members);
+      final members = List<VerificationMember>.of(verification.members);
       verificationData.remove('members');
       
       UnifiedVerification savedVerification;
@@ -169,30 +170,129 @@ class UnifiedVerificationService {
     }
   }
   
-  // Upload file to Storage
+  // Upload file to Storage - works for both web and mobile
   static Future<String?> uploadFile(File file, String userId, String folderName) async {
     try {
-      final fileExt = path.extension(file.path);
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}$fileExt';
-      final filePath = '$folderName/$userId/$fileName';
+      // Get the auth user ID directly from the auth system to ensure it matches exactly
+      final authUserId = SupabaseService.getAuthUserId();
       
-      // Upload file to storage
-      await _client
-          .storage
-          .from('verification_documents')
-          .upload(filePath, file);
+      if (authUserId == null) {
+        throw Exception('User is not authenticated. Please sign in again.');
+      }
+      
+      if (authUserId != userId) {
+        print('Warning: Provided user ID ($userId) does not match authenticated user ID ($authUserId)');
+        // Use the authenticated user ID to ensure RLS policies work
+        userId = authUserId;
+      }
+      
+      print('Starting upload for authenticated user $userId in folder $folderName');
+      
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      // Include user ID in the filename but not in the path - this keeps files unique
+      // while allowing direct upload to bucket root
+      final fileName = 'id_${userId}_${timestamp}.jpg'; // Always use jpg extension to avoid path issues
+      final filePath = fileName; // Direct in bucket root
+      
+      print('Generated file path: $filePath');
+      
+      // Check if we're on web
+      if (kIsWeb) {
+        // For web platform, we need to handle it differently
+        print('Uploading on web platform');
+        
+        try {
+          // For web, read file as bytes from XFile if it's a blob URL
+          final bytes = await file.readAsBytes();
           
-      // Get public URL for the file
+          if (bytes.isEmpty) {
+            throw Exception('File is empty');
+          }
+          
+          print('Web file read as bytes, size: ${bytes.length}');
+          
+          // Check if bucket exists before uploading
+          const bucketName = 'verification_documents';
+          final bucketExists = await SupabaseService.validateStorageBucket(bucketName);
+          if (!bucketExists) {
+            throw Exception('Storage bucket $bucketName does not exist. Please create it first.');
+          }
+          
+          // Upload binary data for web
+          await _client
+              .storage
+              .from(bucketName)
+              .uploadBinary(
+                filePath, 
+                bytes,
+                fileOptions: FileOptions(
+                  contentType: 'image/jpeg',
+                  upsert: true
+                )
+              );
+              
+          print('Web binary upload successful');
+        } catch (webError) {
+          print('Web upload error details: $webError');
+          throw Exception('Web upload failed: $webError');
+        }
+      } else {
+        // For mobile platforms
+        print('Uploading on mobile platform');
+        
+        if (!file.existsSync()) {
+          throw Exception('File does not exist: ${file.path}');
+        }
+        
+        // Read file as bytes for consistent handling
+        final bytes = await file.readAsBytes();
+        
+        // Check if bucket exists before uploading
+        const bucketName = 'verification_documents';
+        final bucketExists = await SupabaseService.validateStorageBucket(bucketName);
+        if (!bucketExists) {
+          throw Exception('Storage bucket $bucketName does not exist. Please create it first.');
+        }
+        
+        await _client
+            .storage
+            .from(bucketName)
+            .uploadBinary(
+              filePath, 
+              bytes,
+              fileOptions: FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true
+              )
+            );
+            
+        print('Mobile upload successful');
+      }
+      
+      // Get public URL for the file (same for web and mobile)
       final fileUrl = _client
           .storage
           .from('verification_documents')
           .getPublicUrl(filePath);
           
+      print('File URL generated: $fileUrl');
       return fileUrl;
       
     } catch (e) {
       print('Error uploading file: $e');
-      return null;
+      
+      // Provide more specific error messages based on common issues
+      if (e.toString().contains('403') || e.toString().contains('Forbidden') || e.toString().contains('Unauthorized')) {
+        throw Exception('Access denied. Authentication issue or insufficient permissions. Please sign out and sign back in.');
+      } else if (e.toString().contains('timeout') || e.toString().contains('TimeoutException')) {
+        throw Exception('Upload timed out. Please check your internet connection and try again.');
+      } else if (e.toString().contains('storage_not_found') || e.toString().contains('bucket')) {
+        throw Exception('Storage bucket issue. Please contact support.');
+      } else if (e.toString().contains('User is not authenticated')) {
+        throw Exception('Authentication required. Please sign in again.');
+      } else {
+        throw Exception('Failed to upload file: $e');
+      }
     }
   }
   
