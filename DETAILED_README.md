@@ -112,13 +112,21 @@ JamiiFund follows a service-based architecture pattern with clear separation of 
    - Payment method handling
    - Campaign stats updates
    - Donation history tracking
+   
+4. **ClickPesaService**: Manages mobile money payments
+   - Token generation and caching
+   - Payment validation via preview endpoint
+   - USSD push payment initiation
+   - Payment status verification
+   - Structured response handling
+   - Transaction tracking
 
-4. **UserService**: Manages user data
+5. **UserService**: Manages user data
    - Profile creation and updates
    - User settings management
    - Authentication state handling
 
-5. **SupabaseService**: Centralized Supabase client
+6. **SupabaseService**: Centralized Supabase client
    - Connection initialization
    - Authentication helpers
    - Database operations
@@ -150,8 +158,15 @@ JamiiFund follows a service-based architecture pattern with clear separation of 
    - Donor information collection
    - Anonymous donation option
    - Message input
+   
+5. **PaymentProcessingScreen**: Payment execution and monitoring
+   - USSD push initiation for mobile payments
+   - Real-time status updates
+   - Success/failure handling
+   - Transaction details display
+   - Auto-redirect on completion
 
-5. **ProfileScreen**: User profile management
+6. **ProfileScreen**: User profile management
    - Personal/organizational information
    - Verification status
    - Created campaigns list
@@ -225,9 +240,19 @@ JamiiFund follows a service-based architecture pattern with clear separation of 
      - Credit Card
      - Bank Transfer
 6. **Payment Processing**:
-   - Connect to payment gateway
-   - Process transaction
-   - Show confirmation or error
+   - Connect to appropriate payment gateway:
+     - ClickPesa for mobile money (USSD Push)
+     - Stripe for card payments
+   - For Mobile Money:
+     - Generate token for ClickPesa API
+     - Preview payment to validate details (optional)
+     - Send USSD push request to user's phone
+     - Track transaction ID and status
+     - Only record donation after successful initiation
+   - For Card Payments:
+     - Process via Stripe SDK
+     - Verify payment confirmation
+   - Show real-time status updates during processing
 7. **Confirmation**:
    - Display success message
    - Return to campaign with updated progress

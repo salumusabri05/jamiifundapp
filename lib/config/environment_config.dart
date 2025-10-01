@@ -15,4 +15,11 @@ class EnvironmentConfig {
   
   static String get stripeSecretKey => 
       dotenv.env['STRIPE_SECRET_KEY'] ?? '';
+      
+  // ClickPesa API Keys
+  static String get clickpesaClientId =>
+      dotenv.env['CLICKPESA_CLIENT_ID'] ?? '';
+      
+  static String get clickpesaApiKey =>
+      dotenv.env['CLICKPESA_API_KEY'] ?? '';
 }

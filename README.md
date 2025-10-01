@@ -13,6 +13,7 @@ JamiiFund is a crowdfunding mobile application built with Flutter and Supabase t
 - [Screens](#screens)
 - [Widgets](#widgets)
 - [Authentication](#authentication)
+- [Payment Processing](#payment-processing)
 - [File Storage](#file-storage)
 - [Database Schema](#database-schema)
 - [Development Guidelines](#development-guidelines)
@@ -47,17 +48,34 @@ The project follows a modular architecture with the following directory structur
 
 ### Environment Configuration
 
-JamiiFund uses environment variables to manage sensitive information like API keys. To set up the project:
+JamiiFund uses environment variables to manage sensitive information like API keys. We've structured the environment variables to support different deployment environments (development, staging, production):
 
-1. Create a `.env` file in the project root with the following variables:
+1. Create a `.env` file in the project root by copying from the `.env.template`:
+   ```bash
+   cp .env.template .env
    ```
-   STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-   STRIPE_SECRET_KEY=your_stripe_secret_key
+
+2. Update the `.env` file with your actual values:
+   ```
+   # Payment Gateway Configurations
+   STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key_here
+   STRIPE_SECRET_KEY=your_stripe_secret_key_here
+   CLICKPESA_CLIENT_ID=your_clickpesa_client_id_here
+   CLICKPESA_API_KEY=your_clickpesa_api_key_here
+   
+   # App Configurations
+   APP_ENVIRONMENT=development  # Change to 'staging' or 'production' as needed
+   ENABLE_DEBUG_LOGS=true       # Set to 'false' in production
    ```
 
-2. Never commit your actual API keys to the repository. The `.env` file is included in `.gitignore`.
+3. For different environments:
+   - **Development**: Set `APP_ENVIRONMENT=development` and `ENABLE_DEBUG_LOGS=true`
+   - **Staging**: Set `APP_ENVIRONMENT=staging` and `ENABLE_DEBUG_LOGS=true`
+   - **Production**: Set `APP_ENVIRONMENT=production` and `ENABLE_DEBUG_LOGS=false`
 
-3. For development, contact the project administrator to obtain the necessary API keys.
+4. Never commit your actual `.env` file to the repository. The `.env` file is included in `.gitignore`.
+
+5. For development, contact the project administrator to obtain the necessary API keys.
 
 ### Prerequisites
 
@@ -164,6 +182,16 @@ Manages donation operations:
 - Processing donations
 - Tracking donation history
 - Updating campaign progress
+- Integrating with payment gateways
+
+### ClickPesaService
+Handles mobile money payments through the ClickPesa API:
+- Token generation and management
+- Payment validation via preview endpoint
+- USSD push payment initiation
+- Payment status checking
+- Structured response handling
+- Token caching for performance optimization
 
 ## Screens
 
@@ -196,6 +224,13 @@ Detailed view of a campaign:
 
 ### CreateCampaignScreen
 Interface for creating new campaigns:
+
+### PaymentProcessingScreen
+Handles donation payment processing:
+- Payment method selection
+- USSD push payment initiation
+- Payment status tracking
+- Confirmation and receipt display
 - Campaign details
 - Funding goal and deadline
 - Media upload
@@ -228,6 +263,37 @@ The app uses Supabase Authentication for user management:
 - Session management
 - Password reset functionality
 - User data synchronization with profiles
+
+## Payment Processing
+
+JamiiFund supports multiple payment methods to ensure donations can be made easily across different regions:
+
+### Mobile Money Payments (ClickPesa)
+- **USSD Push**: Sends a payment request directly to the user's mobile phone
+- **Payment Preview**: Validates payment details before sending USSD push
+- **Token-based Authentication**: Securely authenticates with the ClickPesa API using cached tokens
+- **Status Tracking**: Monitors payment status from initiation through completion
+- **Error Handling**: Robust error handling with structured response objects
+- **Transaction Records**: Stores transaction IDs for verification and reconciliation
+
+### Card Payments (Stripe)
+- **Secure Processing**: Uses Stripe's secure payment processing
+- **Multiple Card Types**: Supports major credit and debit cards
+- **Tokenization**: Never stores sensitive card details
+
+### Payment Flow
+1. User selects payment method and enters details
+2. System validates input and initiates payment request
+3. Payment gateway processes the request
+4. System verifies the payment status before recording the donation
+5. User receives confirmation of successful payment
+
+### Security Measures
+- Environment variables for API credentials
+- Token caching with automatic expiration
+- No storage of sensitive payment details
+- Verification of payment status before recording donations
+- Unique transaction references for each payment
 
 ## File Storage
 
