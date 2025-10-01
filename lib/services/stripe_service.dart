@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:jamiifund/config/environment_config.dart';
 
 class StripeService {
   static const String _apiBase = 'https://api.stripe.com/v1';
   
-  // TODO: Replace with your Stripe publishable key
-  static const String _publishableKey = 'pk_test_51PzukK07ZQAB5YVEf02lLIHUY7Vp1KOk0OHSpHLcxanWT657PzoeeqrHZqn12VDucL4r0r7vcKtz22cB7AhkCcWj00uGuOdh8S';
+  // Get the publishable key from environment config
+  static String get publishableKey => EnvironmentConfig.stripePublishableKey;
   
-  // This will be initialized in the main.dart file with your actual secret key
-  static String _secretKey = 'sk_test_51PzukK07ZQAB5YVE06wH8Hj51ZYbNgPwSD997sGVKJQ9rSDdWqph6ZnkXJbxifxonsHsO0EhgrPZRae5nDOFU0xU00Ky2eRnSK';
+  // This will be initialized in the main.dart file with the actual secret key from environment
+  static String _secretKey = '';
 
   // Initialize the service with your secret key (from server environment)
   static void init(String secretKey) {

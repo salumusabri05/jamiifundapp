@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:jamiifund/models/campaign.dart';
-import 'package:jamiifund/models/donation.dart';
 import 'package:jamiifund/screens/payment_processing_screen.dart';
-import 'package:jamiifund/services/donation_service.dart';
-import 'package:jamiifund/services/stripe_service.dart';
 
 class StripePaymentScreen extends StatefulWidget {
   final Campaign campaign;
@@ -87,19 +84,7 @@ class _StripePaymentScreenState extends State<StripePaymentScreen> {
         _errorMessage = null;
       });
 
-      // Create a donation object
-      final donation = Donation(
-        campaignId: widget.campaign.id,
-        amount: widget.amount,
-        donorName: _isAnonymous ? null : _nameController.text,
-        donorEmail: _isAnonymous ? null : _emailController.text,
-        message: _messageController.text.isEmpty ? null : _messageController.text,
-        anonymous: _isAnonymous,
-        paymentMethod: 'Stripe',
-        paymentStatus: 'pending',
-      );
-      
-      // In a real app, you'd process the credit card payment with Stripe
+      // In a real app, you'd create a donation object and process the credit card payment with Stripe
       // This is where you would:
       // 1. Create a payment method using the card details
       // 2. Create a payment intent for the amount
@@ -107,9 +92,6 @@ class _StripePaymentScreenState extends State<StripePaymentScreen> {
       
       // For demo purposes, we'll just simulate a successful payment
       await Future.delayed(const Duration(seconds: 2));
-      
-      // Create a mock payment intent ID (in a real app, this would come from Stripe)
-      final mockPaymentIntentId = 'pi_${DateTime.now().millisecondsSinceEpoch}';
       
       setState(() {
         _isLoading = false;

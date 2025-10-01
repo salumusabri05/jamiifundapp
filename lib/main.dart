@@ -25,9 +25,17 @@ import 'package:jamiifund/screens/terms_of_service_page.dart';
 import 'package:jamiifund/theme/app_theme.dart';
 import 'package:jamiifund/theme/colors.dart';
 import 'package:jamiifund/services/supabase_client.dart';
+import 'package:jamiifund/config/environment_config.dart';
+import 'package:jamiifund/services/stripe_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load environment variables
+  await EnvironmentConfig.initialize();
+  
+  // Initialize Stripe service with keys from environment
+  StripeService.init(EnvironmentConfig.stripeSecretKey);
   
   // Set preferred orientations
   SystemChrome.setPreferredOrientations([

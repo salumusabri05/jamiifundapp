@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/campaign.dart';
-import 'package:jamiifund/models/donation.dart';
 import 'package:jamiifund/services/donation_service.dart';
 
 class PaymentProcessingScreen extends StatefulWidget {

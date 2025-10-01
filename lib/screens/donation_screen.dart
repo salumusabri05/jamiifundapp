@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/campaign.dart';
 import 'package:jamiifund/screens/payment_processing_screen.dart';
 import 'package:jamiifund/screens/stripe_payment_screen.dart';
-import 'package:jamiifund/services/donation_service.dart';
 
 class DonationScreen extends StatefulWidget {
   final Campaign campaign;
@@ -103,17 +102,7 @@ class _DonationScreenState extends State<DonationScreen> {
       }
       
       // For other payment methods (mobile money), continue with the regular flow
-      // Create donation data
-      final donation = {
-        'campaign_id': widget.campaign.id,
-        'amount': amount,
-        'phone_number': _phoneNumberController.text,
-        'donor_name': _isAnonymous ? null : _nameController.text,
-        'donor_email': _isAnonymous ? null : _emailController.text,
-        'message': _messageController.text.isEmpty ? null : _messageController.text,
-        'anonymous': _isAnonymous,
-        'payment_method': _selectedPaymentMethod,
-      };
+      // No need to create donation data here as it will be handled in PaymentProcessingScreen
       
       setState(() {
         _isLoading = false;
@@ -138,11 +127,9 @@ class _DonationScreenState extends State<DonationScreen> {
         ),
       );
       
-      // If payment was successful (result is true), process the donation in Supabase
+      // If payment was successful (result is true), return to campaign details
+      // Note: The donation is already created in PaymentProcessingScreen
       if (result == true) {
-        // Process donation in database
-        await DonationService.createDonation(donation);
-        
         if (!mounted) return;
         
         // Navigate back to campaign details

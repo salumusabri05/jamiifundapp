@@ -45,6 +45,20 @@ The project follows a modular architecture with the following directory structur
 
 ## Setup and Installation
 
+### Environment Configuration
+
+JamiiFund uses environment variables to manage sensitive information like API keys. To set up the project:
+
+1. Create a `.env` file in the project root with the following variables:
+   ```
+   STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+   STRIPE_SECRET_KEY=your_stripe_secret_key
+   ```
+
+2. Never commit your actual API keys to the repository. The `.env` file is included in `.gitignore`.
+
+3. For development, contact the project administrator to obtain the necessary API keys.
+
 ### Prerequisites
 
 - Flutter SDK (^3.8.1)
