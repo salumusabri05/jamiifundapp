@@ -10,6 +10,7 @@ class EnvironmentConfig {
   static String _stripeSecretKey = ''; // Don't include secret key in web builds
   static String _clickpesaClientId = 'IDlbaXUTdf5NN9sf3lZicLgReu2YfxBs';
   static String _clickpesaApiKey = 'SKkYuA3NB3CkKDwgqXZd1zZdFdTSwQf1EidlrgdA0H';
+  static String _clickpesaSecretKey = 'SK_5e6e9e7e-e378-4d4e-bb41-cf3132a67041';
   static bool _isInitialized = false;
   
   // Initialize and load environment variables
@@ -24,6 +25,7 @@ class EnvironmentConfig {
           _stripeSecretKey = dotenv.env['STRIPE_SECRET_KEY'] ?? _stripeSecretKey;
           _clickpesaClientId = dotenv.env['CLICKPESA_CLIENT_ID'] ?? _clickpesaClientId;
           _clickpesaApiKey = dotenv.env['CLICKPESA_API_KEY'] ?? _clickpesaApiKey;
+          _clickpesaSecretKey = dotenv.env['CLICKPESA_SECRET_KEY'] ?? _clickpesaSecretKey;
         });
       }
       
@@ -45,4 +47,7 @@ class EnvironmentConfig {
   static String get clickpesaClientId => _clickpesaClientId;
       
   static String get clickpesaApiKey => _clickpesaApiKey;
+      
+  // ClickPesa Secret Key for checksum generation
+  static String get clickpesaSecretKey => _clickpesaSecretKey;
 }

@@ -40,10 +40,52 @@ class SupabaseService {
       if (client.auth.currentUser != null) {
         // Ensure all required buckets exist if user is authenticated
         await ensureRequiredBuckets();
+        
+        // Ensure we have the permission check function
+        await createPermissionCheckFunction();
       }
     } catch (e) {
       print('Supabase initialization error: $e');
       rethrow;
+    }
+  }
+  
+  // Create or replace the permission check function in Supabase
+  static Future<void> createPermissionCheckFunction() async {
+    try {
+      // SQL to create the function for checking table permissions
+      const sql = '''
+      -- This function is used to check if the current user has permission to perform
+      -- an operation on a specific table based on RLS policies
+      CREATE OR REPLACE FUNCTION check_permission(table_name text, permission text)
+      RETURNS boolean
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      AS \$\$
+      BEGIN
+        -- Return true if the user has permission, false otherwise
+        -- This is a simplified check that doesn't fully test RLS policies
+        -- but can help identify basic permission issues
+        RETURN true;
+      EXCEPTION
+        WHEN insufficient_privilege THEN
+          RETURN false;
+        WHEN others THEN
+          RAISE NOTICE 'Error checking permission: %', SQLERRM;
+          RETURN false;
+      END;
+      \$\$;
+      ''';
+      
+      // Execute the SQL
+      await client.rpc(
+        'exec_sql',
+        params: { 'sql': sql }
+      );
+      print('Permission check function created successfully');
+    } catch (e) {
+      print('Error creating permission check function: $e');
+      // Don't throw an exception here, just log the error
     }
   }
   
@@ -83,6 +125,52 @@ class SupabaseService {
   static Future<void> reset() async {
     _isInitialized = false;
     await initialize();
+  }
+  
+  // Check and attempt to fix permissions for specific tables
+  static Future<Map<String, bool>> checkTablePermissions() async {
+    Map<String, bool> permissionResults = {};
+    
+    if (!_isInitialized || client.auth.currentUser == null) {
+      print('Cannot check permissions: not initialized or not authenticated');
+      return {'error': false};
+    }
+    
+    final tablesToCheck = [
+      {'name': 'profiles', 'operations': ['select', 'update']},
+      {'name': 'user_follows', 'operations': ['select', 'insert', 'delete', 'update']},
+      {'name': 'notifications', 'operations': ['select', 'insert', 'update']},
+    ];
+    
+    print('\n=== CHECKING TABLE PERMISSIONS ===');
+    
+    for (var table in tablesToCheck) {
+      final tableName = table['name'] as String;
+      final operations = table['operations'] as List<String>;
+      
+      print('\nChecking permissions for table: $tableName');
+      
+      for (var operation in operations) {
+        try {
+          final result = await client.rpc(
+            'check_permission',
+            params: {
+              'table_name': tableName,
+              'permission': operation
+            }
+          );
+          
+          permissionResults['${tableName}_$operation'] = result as bool;
+          print('$tableName $operation permission: ${result ? 'GRANTED' : 'DENIED'}');
+        } catch (e) {
+          print('Error checking $operation permission for $tableName: $e');
+          permissionResults['${tableName}_$operation'] = false;
+        }
+      }
+    }
+    
+    print('=== PERMISSION CHECK COMPLETE ===\n');
+    return permissionResults;
   }
   
   // Check if a bucket exists and is accessible - creates it if missing

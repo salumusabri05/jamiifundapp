@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:jamiifund/models/user_profile.dart';
 import 'package:jamiifund/screens/user_detail_screen.dart';
 import 'package:jamiifund/services/user_service.dart';
+import 'package:jamiifund/utils/supabase_helper.dart';
 import 'package:jamiifund/widgets/app_drawer.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
@@ -42,8 +43,10 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
   }
 
   Future<void> _loadUsers() async {
+    print('Starting _loadUsers method...');
     final currentUser = UserService.getCurrentUser();
     if (currentUser == null) {
+      print('No current user found');
       setState(() {
         _errorMessage = 'You must be logged in to view users';
       });
@@ -82,20 +85,26 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
       }
       print('Follow status map contains ${followStatusMap.length} entries');
 
-      setState(() {
-        _users = users.where((user) => user.id != currentUser.id).toList();
-        print('Filtered to ${_users.length} users (excluding current user)');
-        _filteredUsers = List.from(_users);
-        _followRequestUsers = followRequests;
-        _followStatus = followStatusMap;
-        _isLoading = false;
-      });
+      final filteredUsers = users.where((user) => user.id != currentUser.id).toList();
+      print('Filtered to ${filteredUsers.length} users (excluding current user)');
+      
+      if (mounted) {
+        setState(() {
+          _users = filteredUsers;
+          _filteredUsers = List.from(filteredUsers);
+          _followRequestUsers = followRequests;
+          _followStatus = followStatusMap;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading users: $e');
-      setState(() {
-        _errorMessage = 'Failed to load users: ${e.toString()}';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load users: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -115,42 +124,110 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
 
   Future<void> _toggleFollow(String userId) async {
     final currentUser = UserService.getCurrentUser();
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to follow users')),
+      );
+      return;
+    }
     
     final currentStatus = _followStatus[userId];
+    print('Current follow status for $userId: $currentStatus');
     
-    // Toggle follow status
-    setState(() {
-      if (currentStatus != null) {
-        // If already following or requested, unfollow/cancel
-        _followStatus.remove(userId);
-      } else {
-        // If not following, send request (pending)
-        _followStatus[userId] = 'pending';
-      }
-    });
-
+    // Copy status before toggling for potential rollback
+    final previousStatus = currentStatus;
+    
     try {
-      if (_followStatus[userId] == 'pending') {
-        await UserService.followUser(currentUser.id, userId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Follow request sent')),
-        );
-      } else {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      if (currentStatus != null) {
+        // User is currently followed or pending - unfollow them
+        print('Attempting to unfollow user $userId');
+        
+        // Optimistically update UI
+        setState(() {
+          _followStatus.remove(userId);
+        });
+        
+        // Execute unfollow operation
         await UserService.unfollowUser(currentUser.id, userId);
+        
+        // Double-check status was updated in database
+        await Future.delayed(const Duration(milliseconds: 500)); // Small delay to ensure DB updated
+        final followCheck = await UserService.getFollowRequestStatus(currentUser.id, userId);
+        
+        print('Follow status after unfollow attempt: $followCheck');
+        if (followCheck != null) {
+          print('WARNING: Follow relationship still exists after unfollow attempt');
+          
+          // If relationship still exists, revert UI (will be caught in catch block)
+          throw Exception('Failed to remove follow relationship');
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unfollowed user or canceled request')),
         );
+      } else {
+        // User is not followed - follow them
+        print('Attempting to follow user $userId');
+        
+        // Optimistically update UI
+        setState(() {
+          _followStatus[userId] = 'pending';
+        });
+        
+        // Execute follow operation
+        await UserService.followUser(currentUser.id, userId);
+        
+        // Verify follow request was created in database
+        await Future.delayed(const Duration(milliseconds: 500)); // Small delay to ensure DB updated
+        final followCheck = await UserService.getFollowRequestStatus(currentUser.id, userId);
+        
+        print('Follow status after follow attempt: $followCheck');
+        if (followCheck == null) {
+          print('WARNING: No follow relationship found after follow attempt');
+          
+          // If relationship wasn't created, revert UI (will be caught in catch block)
+          throw Exception('Failed to create follow relationship');
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Follow request sent')),
+        );
       }
     } catch (e) {
+      print('ERROR in _toggleFollow: $e');
+      
       // Revert the UI change on error
       setState(() {
-        _followStatus.remove(userId);
+        if (previousStatus != null) {
+          // Restore previous status
+          _followStatus[userId] = previousStatus;
+        } else {
+          // Remove pending status
+          _followStatus.remove(userId);
+        }
       });
 
+      // Show a more detailed error message with troubleshooting help
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update following: ${e.toString()}')),
+        SnackBar(
+          content: Text('Follow action failed: ${e.toString()}'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Help',
+            onPressed: () {
+              SupabaseHelper.showSupabaseTroubleshootingDialog(context);
+            },
+          ),
+        ),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
   

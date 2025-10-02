@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jamiifund/config/environment_config.dart';
@@ -175,6 +176,22 @@ class ClickPesaService {
     receiveTimeout: const Duration(seconds: 30),
     sendTimeout: const Duration(seconds: 30),
     contentType: 'application/json',
+    validateStatus: (status) {
+      // Consider all responses as valid to handle in the catch block
+      return true;
+    },
+  ))..interceptors.add(LogInterceptor(
+    requestBody: true,
+    responseBody: true,
+    requestHeader: true,
+    responseHeader: true,
+    error: true,
+    logPrint: (obj) {
+      // Only log in debug mode
+      if (kDebugMode) {
+        debugPrint('CLICKPESA API: $obj');
+      }
+    },
   ));
 
   // Token storage
@@ -207,7 +224,8 @@ class ClickPesaService {
         throw ClickPesaException('ClickPesa credentials are not configured');
       }
       
-      debugPrint('Generating new ClickPesa token...');
+      debugPrint('Generating new ClickPesa token with client ID: ${clientId.substring(0, 5)}...');
+      debugPrint('API Key: ${apiKey.substring(0, 5)}...');
       
       // Prepare request
       final response = await _dio.post(
@@ -312,8 +330,11 @@ class ClickPesaService {
     required String orderReference,
     required String phoneNumber,
   }) {
-    // Note: In a real implementation, you would need a proper secret key from ClickPesa
-    const String secretKey = 'your-clickpesa-secret-key'; 
+    // Get the secret key from environment config
+    final String secretKey = EnvironmentConfig.clickpesaSecretKey;
+    
+    // Log for debugging (remove in production)
+    debugPrint('Generating checksum with secret key: ${secretKey.substring(0, 5)}...');
     
     final raw = '$amount$currency$orderReference$phoneNumber$secretKey';
     return sha256.convert(utf8.encode(raw)).toString();
@@ -541,7 +562,13 @@ class ClickPesaService {
         'checksum': checksum,
       };
       
-      debugPrint('Initiating USSD payment with data: $requestData');
+      debugPrint('Initiating USSD payment with data:');
+      debugPrint('Amount: $amount');
+      debugPrint('Currency: $currency');
+      debugPrint('Order Reference: $paymentRef');
+      debugPrint('Phone Number: $formattedPhone');
+      debugPrint('Checksum: ${checksum.substring(0, 10)}...');
+      debugPrint('Using token: ${token.substring(0, 10)}...');
       
       // Make API call
       final response = await _dio.post(

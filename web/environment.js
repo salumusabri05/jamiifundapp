@@ -6,6 +6,7 @@ window.ENV = {
   STRIPE_PUBLISHABLE_KEY: 'pk_test_51PzukK07ZQAB5YVEf02lLIHUY7Vp1KOk0OHSpHLcxanWT657PzoeeqrHZqn12VDucL4r0r7vcKtz22cB7AhkCcWj00uGuOdh8S',
   CLICKPESA_CLIENT_ID: 'IDlbaXUTdf5NN9sf3lZicLgReu2YfxBs',
   CLICKPESA_API_KEY: 'SKkYuA3NB3CkKDwgqXZd1zZdFdTSwQf1EidlrgdA0H',
+  CLICKPESA_SECRET_KEY: 'SK_5e6e9e7e-e378-4d4e-bb41-cf3132a67041',
 };
 
 // This script can be further enhanced to include Netlify environment variables

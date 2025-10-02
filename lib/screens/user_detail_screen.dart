@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:jamiifund/models/user_profile.dart';
 import 'package:jamiifund/screens/chat_detail_screen.dart';
 import 'package:jamiifund/services/user_service.dart';
+import 'package:jamiifund/utils/supabase_helper.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
 
 class UserDetailScreen extends StatefulWidget {
@@ -74,8 +75,17 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
 
   Future<void> _toggleFollow() async {
     final currentUser = UserService.getCurrentUser();
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to follow users')),
+      );
+      return;
+    }
 
+    // Store previous state in case we need to roll back
+    final wasFollowing = _isFollowing;
+    final wasPending = _isPendingRequest;
+    
     setState(() {
       _isLoading = true;
       
@@ -91,30 +101,62 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     });
 
     try {
+      print('Toggling follow state for user ${widget.user.id}');
+      print('Current state: isFollowing=$_isFollowing, isPending=$_isPendingRequest');
+      
       if (_isPendingRequest) {
+        // Send follow request
+        print('Sending follow request to ${widget.user.id}');
         await UserService.followUser(currentUser.id, widget.user.id);
+        
+        // Verify follow request was created
+        final followCheck = await UserService.getFollowRequestStatus(currentUser.id, widget.user.id);
+        print('Follow status after request: $followCheck');
+        
+        if (followCheck == null) {
+          throw Exception('Follow request was not created in database');
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Follow request sent to ${widget.user.fullName}')),
         );
       } else {
+        // Unfollow or cancel request
+        print('Unfollowing user ${widget.user.id}');
         await UserService.unfollowUser(currentUser.id, widget.user.id);
+        
+        // Verify follow relationship was removed
+        final followCheck = await UserService.getFollowRequestStatus(currentUser.id, widget.user.id);
+        print('Follow status after unfollow: $followCheck');
+        
+        if (followCheck != null) {
+          throw Exception('Follow relationship still exists after unfollow');
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Unfollowed ${widget.user.fullName}')),
         );
       }
       
-      // Refresh status
-      _checkFollowStatus();
+      // Refresh status to get the latest state from the database
+      await _checkFollowStatus();
     } catch (e) {
+      print('ERROR in _toggleFollow: $e');
+      
       // Revert the UI change on error
       setState(() {
+        _isFollowing = wasFollowing;
+        _isPendingRequest = wasPending;
         _errorMessage = 'Failed to update follow status: ${e.toString()}';
-        _isLoading = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_errorMessage!)),
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
   
@@ -122,27 +164,51 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     final currentUser = UserService.getCurrentUser();
     if (currentUser == null) return;
 
+    // Store previous state for potential rollback
+    final hadPendingRequest = _hasPendingRequestFromUser;
+
     setState(() {
       _isLoading = true;
+      // Optimistically update UI
+      _hasPendingRequestFromUser = false;
+      _isFollower = true;
     });
 
     try {
+      print('Accepting follow request from user ${widget.user.id}');
       await UserService.acceptFollowRequest(widget.user.id, currentUser.id);
+      
+      // Verify status changed
+      final followerStatus = await UserService.getFollowRequestStatus(widget.user.id, currentUser.id);
+      print('Follower status after acceptance: $followerStatus');
+      
+      if (followerStatus != 'accepted') {
+        throw Exception('Follow request was not updated to accepted');
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Accepted follow request from ${widget.user.fullName}')),
       );
       
       // Refresh status
-      _checkFollowStatus();
+      await _checkFollowStatus();
     } catch (e) {
+      print('ERROR in _acceptFollowRequest: $e');
+      
+      // Revert the UI change on error
       setState(() {
+        _hasPendingRequestFromUser = hadPendingRequest;
+        _isFollower = false;
         _errorMessage = 'Failed to accept follow request: ${e.toString()}';
-        _isLoading = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_errorMessage!)),
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
   
@@ -150,27 +216,49 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     final currentUser = UserService.getCurrentUser();
     if (currentUser == null) return;
 
+    // Store previous state for potential rollback
+    final hadPendingRequest = _hasPendingRequestFromUser;
+
     setState(() {
       _isLoading = true;
+      // Optimistically update UI
+      _hasPendingRequestFromUser = false;
     });
 
     try {
+      print('Rejecting follow request from user ${widget.user.id}');
       await UserService.rejectFollowRequest(widget.user.id, currentUser.id);
+      
+      // Verify relationship was removed
+      final followerStatus = await UserService.getFollowRequestStatus(widget.user.id, currentUser.id);
+      print('Follower status after rejection: $followerStatus');
+      
+      if (followerStatus != null) {
+        throw Exception('Follow request was not removed from database');
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Rejected follow request from ${widget.user.fullName}')),
       );
       
       // Refresh status
-      _checkFollowStatus();
+      await _checkFollowStatus();
     } catch (e) {
+      print('ERROR in _rejectFollowRequest: $e');
+      
+      // Revert the UI change on error
       setState(() {
+        _hasPendingRequestFromUser = hadPendingRequest;
         _errorMessage = 'Failed to reject follow request: ${e.toString()}';
-        _isLoading = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_errorMessage!)),
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
