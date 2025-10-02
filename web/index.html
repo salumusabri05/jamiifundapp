@@ -24,15 +24,42 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="jamiifund">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" href="assets/images/icon.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="assets/images/icon.png"/>
 
   <title>jamiifund</title>
   <link rel="manifest" href="manifest.json">
+  
+  <!-- Load environment variables for web deployment -->
+  <script src="environment.js"></script>
 </head>
 <body>
+  <!-- Add loading indicator -->
+  <div id="loading" style="
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #FFFFFF;
+    z-index: 999;
+  ">
+    <div style="text-align: center;">
+      <img src="assets/images/icon.png" alt="JamiiFund" style="width: 120px; height: 120px;">
+      <div style="
+        margin-top: 20px;
+        font-family: Arial, sans-serif;
+        font-size: 18px;
+        color: #4CAF50;
+      ">Loading JamiiFund...</div>
+    </div>
+  </div>
+  
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

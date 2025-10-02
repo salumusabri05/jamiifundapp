@@ -31,11 +31,17 @@ import 'package:jamiifund/services/stripe_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load environment variables
-  await EnvironmentConfig.initialize();
-  
-  // Initialize Stripe service with keys from environment
-  StripeService.init(EnvironmentConfig.stripeSecretKey);
+  try {
+    // Load environment variables
+    await EnvironmentConfig.initialize();
+    
+    // Initialize Stripe service with keys from environment
+    StripeService.init(EnvironmentConfig.stripeSecretKey);
+  } catch (e) {
+    debugPrint('Error during initialization: $e');
+    // Continue with the app even if environment loading fails
+    // The EnvironmentConfig class now has fallback values
+  }
   
   // Set preferred orientations
   SystemChrome.setPreferredOrientations([
