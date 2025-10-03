@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jamiifund/models/campaign.dart';
 import 'package:jamiifund/screens/donation_screen.dart';
 import 'package:jamiifund/services/campaign_service.dart';
+import 'package:jamiifund/services/donation_service.dart';
 import 'package:jamiifund/widgets/app_bottom_nav_bar.dart';
+import 'package:share_plus/share_plus.dart';
 
 class CampaignDetailsPage extends StatefulWidget {
   final Campaign campaign;
@@ -23,12 +26,16 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
   late TabController _tabController;
   bool _isExpanded = false;
   late Campaign _campaign;
+  List<Map<String, dynamic>> _campaignDonations = [];
+  bool _isLoadingDonations = false;
+  String _donationsErrorMessage = '';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _campaign = widget.campaign;
+    _loadDonations();
   }
   
   Future<void> _refreshCampaignDetails() async {
@@ -41,6 +48,9 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
           _campaign = updatedCampaign;
         });
       }
+      
+      // Also refresh donations
+      _loadDonations();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -49,6 +59,34 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
             backgroundColor: Colors.red,
           ),
         );
+      }
+    }
+  }
+  
+  Future<void> _loadDonations() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingDonations = true;
+      _donationsErrorMessage = '';
+    });
+    
+    try {
+      // Get donations for this campaign
+      final donations = await DonationService.getDonationsByCampaign(_campaign.id);
+      
+      if (mounted) {
+        setState(() {
+          _campaignDonations = donations;
+          _isLoadingDonations = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _donationsErrorMessage = 'Failed to load donations: $e';
+          _isLoadingDonations = false;
+        });
       }
     }
   }
@@ -169,10 +207,7 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
                 IconButton(
                   icon: const Icon(Icons.share_outlined),
                   onPressed: () {
-                    // TODO: Implement share functionality
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Sharing campaign...')),
-                    );
+                    _shareCampaign();
                   },
                 ),
                 // Favorite/bookmark button
@@ -462,11 +497,38 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
               _buildSocialButton(
-                icon: Icons.facebook,
+                icon: FontAwesomeIcons.facebook,
                 label: 'Facebook',
                 color: const Color(0xFF1877F2),
                 onTap: () {
-                  // TODO: Share to Facebook
+                  _shareCampaign(platform: 'facebook');
+                },
+              ),
+              const SizedBox(width: 12.0),
+              _buildSocialButton(
+                icon: FontAwesomeIcons.twitter,
+                label: 'Twitter',
+                color: const Color(0xFF1DA1F2),
+                onTap: () {
+                  _shareCampaign(platform: 'twitter');
+                },
+              ),
+              const SizedBox(width: 12.0),
+              _buildSocialButton(
+                icon: FontAwesomeIcons.instagram,
+                label: 'Instagram',
+                color: const Color(0xFFE4405F),
+                onTap: () {
+                  _shareCampaign(platform: 'instagram');
+                },
+              ),
+              const SizedBox(width: 12.0),
+              _buildSocialButton(
+                icon: FontAwesomeIcons.whatsapp,
+                label: 'WhatsApp',
+                color: const Color(0xFF25D366),
+                onTap: () {
+                  _shareCampaign(platform: 'whatsapp');
                 },
               ),
               const SizedBox(width: 12.0),
@@ -483,15 +545,6 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
                   );
                 },
               ),
-              const SizedBox(width: 12.0),
-              _buildSocialButton(
-                icon: Icons.message,
-                label: 'WhatsApp',
-                color: const Color(0xFF25D366),
-                onTap: () {
-                  // TODO: Share to WhatsApp
-                },
-              ),
             ],
           ),
         ],
@@ -500,19 +553,69 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
   }
 
   Widget _buildUpdatesTab() {
-    // Example updates, in a real app these would come from your database
-    final List<Map<String, dynamic>> updates = [
-      {
-        'title': 'Construction has begun!',
-        'date': DateTime.now().subtract(const Duration(days: 5)),
-        'content': 'We are excited to announce that construction has begun on our project. Thanks to your generous donations, we have been able to hire local workers and purchase materials.',
-      },
-      {
-        'title': 'First milestone reached',
-        'date': DateTime.now().subtract(const Duration(days: 15)),
-        'content': 'We have reached our first milestone! The foundation has been laid and we are now working on the walls.',
-      },
-    ];
+    // Generate updates based on campaign data to make them more relevant
+    final List<Map<String, dynamic>> updates = [];
+    
+    // Add fundraising progress update
+    final percentFunded = (_campaign.currentAmount / _campaign.goalAmount * 100).round();
+    if (percentFunded > 0) {
+      updates.add({
+        'title': '$percentFunded% Funded!',
+        'date': DateTime.now().subtract(const Duration(hours: 12)),
+        'content': 'We\'ve reached $percentFunded% of our goal with ${_campaign.donorCount} generous donors! Thank you to everyone who has supported this campaign so far. We still need your help to reach our goal of TSh ${_campaign.goalAmount.toStringAsFixed(0)}. Please consider donating today - every contribution makes a difference! Click the "Donate Now" button at the top of the page.',
+        'type': 'milestone'
+      });
+    }
+    
+    // Add campaign launch update
+    updates.add({
+      'title': 'Campaign Launched',
+      'date': _campaign.createdAt,
+      'content': 'We\'ve officially launched our campaign "${_campaign.title}"! ${_campaign.description.split('.').first}. We need your financial support to make this a success. Your donation, no matter how small, will help us reach our goal of TSh ${_campaign.goalAmount.toStringAsFixed(0)}. Please donate now and share with your friends and family!',
+      'type': 'launch'
+    });
+    
+    // Add a special donation request update
+    updates.add({
+      'title': 'Why Your Donation Matters',
+      'date': DateTime.now().subtract(const Duration(days: 1, hours: 4)),
+      'content': 'Every donation brings us one step closer to our goal. Your contribution will directly impact this cause and help us make a difference. If just ${((_campaign.goalAmount - _campaign.currentAmount) / 1000).ceil()} people donate TSh 1,000 each, we can reach our target! Click the "Donate Now" button at the top of this page to contribute today. Your generosity will not go unnoticed.',
+      'type': 'donation_request'
+    });
+    
+    // Add milestone update based on percentage funded
+    if (percentFunded >= 25 && percentFunded < 50) {
+      updates.add({
+        'title': 'First Milestone Reached',
+        'date': DateTime.now().subtract(const Duration(days: 3)),
+        'content': 'We\'ve hit our first milestone of 25%! This is a great start, but we still have a long way to go. With your continued support, we can reach our goal. Would you consider making a donation today? Every shilling counts toward making this project a reality. Donate now and be part of our success story!',
+        'type': 'milestone'
+      });
+    } else if (percentFunded >= 50 && percentFunded < 75) {
+      updates.add({
+        'title': 'Halfway There!',
+        'date': DateTime.now().subtract(const Duration(days: 2)),
+        'content': 'We\'ve reached 50% of our funding goal! This is a huge milestone for us. Thank you to all our supporters for believing in our cause. We\'re halfway there, but we still need your help to raise the remaining TSh ${(_campaign.goalAmount - _campaign.currentAmount).toStringAsFixed(0)}. Please donate now and help us cross the finish line!',
+        'type': 'milestone'
+      });
+    } else if (percentFunded >= 75 && percentFunded < 100) {
+      updates.add({
+        'title': 'Almost There!',
+        'date': DateTime.now().subtract(const Duration(days: 1)),
+        'content': 'We\'re so close! With just ${(100 - percentFunded)}% to go, we can see the finish line. We need just TSh ${(_campaign.goalAmount - _campaign.currentAmount).toStringAsFixed(0)} more to reach our goal! Please donate now and share our campaign with your networks. Your contribution today could be what puts us over the top!',
+        'type': 'milestone'
+      });
+    } else if (percentFunded >= 100) {
+      updates.add({
+        'title': 'Goal Reached!',
+        'date': DateTime.now().subtract(const Duration(hours: 6)),
+        'content': 'We did it! Thanks to your generosity, we\'ve reached our funding goal of TSh ${_campaign.goalAmount.toStringAsFixed(0)}! We\'re excited to start implementing our plans and will keep you updated on our progress. Donations are still welcome as additional funds will allow us to expand our impact even further. Thank you to all ${_campaign.donorCount} donors who made this possible!',
+        'type': 'success'
+      });
+    }
+    
+    // Sort updates by date, newest first
+    updates.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
     if (updates.isEmpty) {
       return Center(
@@ -552,19 +655,49 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
       separatorBuilder: (context, index) => const Divider(),
       itemBuilder: (context, index) {
         final update = updates[index];
+        
+        // Choose icon based on update type
+        IconData updateIcon;
+        Color iconColor;
+        
+        switch (update['type']) {
+          case 'launch':
+            updateIcon = Icons.rocket_launch;
+            iconColor = Colors.blue;
+            break;
+          case 'milestone':
+            updateIcon = Icons.flag;
+            iconColor = Colors.orange;
+            break;
+          case 'success':
+            updateIcon = Icons.celebration;
+            iconColor = Colors.green;
+            break;
+          case 'donation_request':
+            updateIcon = Icons.volunteer_activism;
+            iconColor = Colors.red;
+            break;
+          default:
+            updateIcon = Icons.update;
+            iconColor = Colors.purple;
+        }
+        
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Text(
-                  update['title'],
-                  style: GoogleFonts.nunito(
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.bold,
+                Icon(updateIcon, color: iconColor, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    update['title'],
+                    style: GoogleFonts.nunito(
+                      fontSize: 16.0,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 Text(
                   _formatDate(update['date']),
                   style: GoogleFonts.nunito(
@@ -586,145 +719,226 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
   }
 
   Widget _buildDonorsTab() {
-    // Example donors, in a real app these would come from your database
-    final List<Map<String, dynamic>> donors = [
-      {
-        'name': 'John Doe',
-        'amount': 5000,
-        'date': DateTime.now().subtract(const Duration(days: 2)),
-        'comment': 'Great initiative! Keep up the good work.',
-      },
-      {
-        'name': 'Jane Smith',
-        'amount': 10000,
-        'date': DateTime.now().subtract(const Duration(days: 5)),
-        'comment': 'Happy to support this important cause.',
-      },
-      {
-        'name': 'Anonymous',
-        'amount': 2000,
-        'date': DateTime.now().subtract(const Duration(days: 7)),
-        'comment': null,
-      },
-    ];
+    if (_isLoadingDonations) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF8A2BE2),
+        ),
+      );
+    }
 
-    if (donors.isEmpty) {
+    if (_donationsErrorMessage.isNotEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.volunteer_activism_outlined,
-              size: 64.0,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16.0),
-            Text(
-              'No donors yet',
-              style: GoogleFonts.nunito(
-                fontSize: 18.0,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8.0),
-            Text(
-              'Be the first to donate to this campaign!',
-              style: GoogleFonts.nunito(
-                color: Colors.grey[500],
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24.0),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DonationScreen(campaign: _campaign),
-                  ),
-                ).then((donated) {
-                  if (donated == true) {
-                    _refreshCampaignDetails();
-                  }
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8A2BE2),
-                foregroundColor: Colors.white,
-              ),
-              child: Text(
-                'Donate Now',
-                style: GoogleFonts.nunito(
-                  fontWeight: FontWeight.bold,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64.0,
+                  color: Colors.red[300],
                 ),
-              ),
+                const SizedBox(height: 16.0),
+                Text(
+                  'Something went wrong',
+                  style: GoogleFonts.nunito(
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Text(
+                    _donationsErrorMessage,
+                    style: GoogleFonts.nunito(
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 24.0),
+                ElevatedButton(
+                  onPressed: _loadDonations,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8A2BE2),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                    'Try Again',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+        ),
+      );
+    }
+
+    if (_campaignDonations.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.volunteer_activism_outlined,
+                  size: 64.0,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16.0),
+                Text(
+                  'No donors yet',
+                  style: GoogleFonts.nunito(
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Text(
+                  'Be the first to donate to this campaign!',
+                  style: GoogleFonts.nunito(
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24.0),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DonationScreen(campaign: _campaign),
+                      ),
+                    ).then((donated) {
+                      if (donated == true) {
+                        _refreshCampaignDetails();
+                      }
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8A2BE2),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                    'Donate Now',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: _refreshCampaignDetails,
+      onRefresh: _loadDonations,
       color: const Color(0xFF8A2BE2),
       child: ListView.separated(
         padding: const EdgeInsets.all(16.0),
-        itemCount: donors.length,
+        itemCount: _campaignDonations.length,
         separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
-          final donor = donors[index];
-          return ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-              backgroundColor: const Color(0xFF8A2BE2).withOpacity(0.2),
-              child: Text(
-                donor['name'].substring(0, 1),
-                style: GoogleFonts.nunito(
-                  color: const Color(0xFF8A2BE2),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+          final donation = _campaignDonations[index];
+          final name = donation['anonymous'] == true ? 
+              'Anonymous' : 
+              (donation['donor_name'] ?? 'Anonymous');
+          
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8.0),
+            elevation: 0.5,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.0),
             ),
-            title: Row(
-              children: [
-                Text(
-                  donor['name'],
-                  style: GoogleFonts.nunito(
-                    fontWeight: FontWeight.w600,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: const Color(0xFF8A2BE2).withOpacity(0.2),
+                        child: Text(
+                          name != 'Anonymous' ? name.substring(0, 1) : 'A',
+                          style: GoogleFonts.nunito(
+                            color: const Color(0xFF8A2BE2),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12.0),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    style: GoogleFonts.nunito(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  'TSh ${donation['amount'].toString()}',
+                                  style: GoogleFonts.nunito(
+                                    color: const Color(0xFF8A2BE2),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              donation['created_at'] != null 
+                                  ? _formatDate(DateTime.parse(donation['created_at']))
+                                  : 'Recent donation',
+                              style: GoogleFonts.nunito(
+                                fontSize: 12.0,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8.0),
-                Text(
-                  'TSh ${donor['amount'].toStringAsFixed(0)}',
-                  style: GoogleFonts.nunito(
-                    color: const Color(0xFF8A2BE2),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatDate(donor['date']),
-                  style: GoogleFonts.nunito(
-                    fontSize: 12.0,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                if (donor['comment'] != null) ...[
-                  const SizedBox(height: 4.0),
-                  Text(
-                    donor['comment'],
-                    style: GoogleFonts.nunito(
-                      fontSize: 14.0,
-                      fontStyle: FontStyle.italic,
+                  if (donation['message'] != null && donation['message'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 8.0),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 48.0),
+                      child: Text(
+                        '"${donation['message'].toString()}"',
+                        style: GoogleFonts.nunito(
+                          fontSize: 14.0,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey[700],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           );
         },
@@ -750,6 +964,14 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
       {
         'question': 'Can I donate anonymously?',
         'answer': 'Yes, you can choose to make your donation anonymous during the checkout process.',
+      },
+      {
+        'question': 'Why should I donate to this campaign?',
+        'answer': 'Your donation makes a real difference! By supporting this campaign, you\'re directly contributing to a meaningful cause that impacts many lives. Every shilling counts, and your generosity helps us reach our goals faster. Plus, you become part of our community of supporters making positive change happen.',
+      },
+      {
+        'question': 'How do I know my donation is secure?',
+        'answer': 'JamiiFund uses industry-standard security protocols to ensure all transactions are secure. We partner with trusted payment processors and never store your sensitive financial information. You\'ll receive a confirmation receipt for every donation made.',
       },
     ];
 
@@ -827,6 +1049,33 @@ class _CampaignDetailsPageState extends State<CampaignDetailsPage>
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown date';
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _shareCampaign({String? platform}) {
+    final campaignUrl = 'https://jamiifund.com/campaigns/${_campaign.id}';
+    final String shareText;
+    
+    // Create custom share text based on platform
+    switch (platform) {
+      case 'facebook':
+        shareText = 'Support "${_campaign.title}" on JamiiFund. ${_campaign.currentAmount.toStringAsFixed(0)} TSh raised out of ${_campaign.goalAmount.toStringAsFixed(0)} TSh goal. ${campaignUrl}';
+        break;
+      case 'twitter':
+        shareText = 'I\'m supporting "${_campaign.title}" on #JamiiFund. Join me and help them reach their goal! ${campaignUrl}';
+        break;
+      case 'instagram':
+        shareText = 'Check out "${_campaign.title}" on JamiiFund. ${_campaign.currentAmount.toStringAsFixed(0)} TSh raised so far. Support this important cause! ${campaignUrl}';
+        break;
+      case 'whatsapp':
+        shareText = 'Hey! I thought you might be interested in supporting this campaign: "${_campaign.title}" on JamiiFund. They\'ve raised ${_campaign.currentAmount.toStringAsFixed(0)} TSh of their ${_campaign.goalAmount.toStringAsFixed(0)} TSh goal. Check it out: ${campaignUrl}';
+        break;
+      default:
+        shareText = 'Support "${_campaign.title}" on JamiiFund. ${_campaign.currentAmount.toStringAsFixed(0)} TSh raised out of ${_campaign.goalAmount.toStringAsFixed(0)} TSh goal. ${campaignUrl}';
+        break;
+    }
+    
+    // Use share_plus plugin to share the content
+    Share.share(shareText, subject: 'Check out this campaign on JamiiFund');
   }
 }
 

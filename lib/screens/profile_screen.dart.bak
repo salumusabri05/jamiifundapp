@@ -44,8 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   // Animation controllers
   TabController? _tabController; // Change to nullable
   final ScrollController _scrollController = ScrollController();
-  // Used by scroll listener but currently may not be directly referenced in UI
-  // ignore: unused_field
   bool _isScrolled = false;
   
   // User stats
@@ -53,14 +51,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   int _campaignsContributed = 0;
   double _totalAmountRaised = 0;
   
-  // Expanded sections - used in tab controller listener but may not be referenced elsewhere
-  // ignore: unused_field
+  // Expanded sections
   bool _personalExpanded = true;
-  // ignore: unused_field
   bool _contactExpanded = false;
-  // ignore: unused_field
   bool _addressExpanded = false;
-  // ignore: unused_field
   bool _organizationExpanded = false;
 
   @override
@@ -727,6 +721,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               label: 'Email Address',
               prefixIcon: Icons.email,
               enabled: false, // Email can't be changed
+              delay: 0.ms,
             ),
             
             _buildAnimatedField(
@@ -734,6 +729,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               label: 'Phone Number',
               prefixIcon: Icons.phone,
               enabled: _isEditMode,
+              delay: 100.ms,
             ),
             
             _buildAnimatedField(
@@ -741,6 +737,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               label: 'Website',
               prefixIcon: Icons.link,
               enabled: _isEditMode,
+              delay: 200.ms,
             ),
             
             ExpansionTile(
@@ -756,24 +753,28 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   controller: _addressController,
                   label: 'Street Address',
                   enabled: _isEditMode,
+                  delay: 0.ms,
                 ),
                 
                 _buildAnimatedField(
                   controller: _cityController,
                   label: 'City',
                   enabled: _isEditMode,
+                  delay: 50.ms,
                 ),
                 
                 _buildAnimatedField(
                   controller: _regionController,
                   label: 'Region/State',
                   enabled: _isEditMode,
+                  delay: 100.ms,
                 ),
                 
                 _buildAnimatedField(
                   controller: _postalCodeController,
                   label: 'Postal Code',
                   enabled: _isEditMode,
+                  delay: 150.ms,
                 ),
                 
                 const SizedBox(height: 8),
@@ -856,6 +857,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   }
                   return null;
                 },
+                delay: 100.ms,
               ),
               
               _buildAnimatedField(
@@ -863,6 +865,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 label: 'Registration Number',
                 prefixIcon: Icons.numbers,
                 enabled: _isEditMode,
+                delay: 200.ms,
               ),
               
               _buildAnimatedField(
@@ -870,6 +873,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 label: 'Organization Type',
                 prefixIcon: Icons.category,
                 enabled: _isEditMode,
+                delay: 300.ms,
               ),
               
               _buildAnimatedField(
@@ -878,6 +882,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 prefixIcon: Icons.description,
                 enabled: _isEditMode,
                 maxLines: 3,
+                delay: 400.ms,
               ),
             ],
             
